@@ -23,7 +23,7 @@ spec:
         {{- toYaml .Values.core.nodeSelector | nindent 8 }}
       containers:
         - name: core
-          image: "{{ .Values.core.image.repository }}:{{ .Values.core.image.tag }}"
+          image: "{{ .Values.core.image.repository }}{{ if .Values.core.image.digest }}@{{ .Values.core.image.digest }}{{ else }}:{{ .Values.core.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.core.image.pullPolicy }}
           resources:
             {{- toYaml .Values.core.resources | nindent 12 }}
