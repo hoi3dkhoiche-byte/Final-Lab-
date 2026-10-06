@@ -1,0 +1,16 @@
+# metasfresh-gitops/versions.yaml
+image_family: metasfresh
+version: 5.175
+postgres_major: 15
+seed_checksum: "TBD" # Cập nhật sau khi tải và tính checksum seed DB
+migration_checksum: "TBD"
+
+images:
+  api: metasfresh/metas-api:5.175
+  app: metasfresh/metas-app:5.175
+  frontend: metasfresh/metas-frontend:5.175
+
+charts:
+  sealed-secrets: "2.16.1"
+  argo-cd: "7.6.1"
+  velero: "8.2.1"

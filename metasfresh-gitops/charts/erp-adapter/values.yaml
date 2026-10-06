@@ -1,0 +1,76 @@
+# Default values for erp-adapter.
+
+global:
+  namespace: erp
+  imagePullSecrets:
+    - name: harbor-pull
+
+# Core ERP
+core:
+  replicaCount: 1
+  image:
+    repository: metasfresh/metas-app
+    tag: "5.175"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 3Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  nodeSelector:
+    workload: app
+
+# Web API
+api:
+  replicaCount: 1
+  image:
+    repository: metasfresh/metas-api
+    tag: "5.175"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 2000m
+      memory: 3Gi
+  nodeSelector:
+    workload: app
+
+# Web UI / Frontend
+ui:
+  replicaCount: 2
+  image:
+    repository: metasfresh/metas-frontend
+    tag: "5.175"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  nodeSelector:
+    workload: app
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 60
+
+# External dependencies (VMs)
+externalDB:
+  pgHost: "pg.erp.local"
+  pgPort: 5432
+  rabbitHost: "rabbit.erp.local"
+  rabbitPort: 5672
+  searchHost: "search.erp.local"
+  searchPort: 9200
+
+ingress:
+  enabled: true
+  className: "haproxy"
+  host: "erp.yourdomain.com"

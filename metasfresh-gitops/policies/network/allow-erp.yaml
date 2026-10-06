@@ -1,0 +1,72 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ui-to-api
+  namespace: erp
+spec:
+  podSelector:
+    matchLabels:
+      app: metasfresh-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: metasfresh-ui
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-to-core
+  namespace: erp
+spec:
+  podSelector:
+    matchLabels:
+      app: metasfresh-core
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: metasfresh-api
+      ports:
+        - protocol: TCP
+          port: 8282
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-core-api-to-data
+  namespace: erp
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - metasfresh-core
+          - metasfresh-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.60.40.10/32 # IP thuc te cua PG VM
+        - ipBlock:
+            cidr: 10.60.40.20/32 # IP thuc te cua RabbitMQ VM
+        - ipBlock:
+            cidr: 10.60.40.30/32 # IP thuc te cua Elasticsearch VM
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 5672
+        - protocol: TCP
+          port: 9200
+        - protocol: TCP
+          port: 9300

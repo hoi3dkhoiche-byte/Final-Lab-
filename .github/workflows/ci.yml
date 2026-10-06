@@ -1,0 +1,91 @@
+name: CI Build and GitOps Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: harbor.erp.local # Domain Harbor Private
+  PROJECT: erp
+  IMAGE_NAME: metas-app
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest # Hoặc self-hosted runner nếu dùng trong CaaS
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java / Node
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          # TODO: Config cache and maven settings if needed
+
+      - name: Run Tests & Lint
+        run: |
+          echo "Chạy test và lint ở đây (VD: mvn test, npm run lint)"
+          # mvn -B test
+
+      - name: Login to Harbor
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.CI_HARBOR_USERNAME }}
+          password: ${{ secrets.CI_HARBOR_TOKEN }}
+
+      - name: Build and Push Docker Image
+        if: github.event_name != 'pull_request'
+        id: docker_build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker-builds/Dockerfile # Đường dẫn tới Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Run Trivy vulnerability scanner
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Update GitOps Repository
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Cloning GitOps repo..."
+          git clone https://${{ secrets.GITOPS_TOKEN }}@github.com/your-org/metasfresh-gitops.git
+          cd metasfresh-gitops
+          
+          echo "Updating versions.yaml with new image tag: ${{ github.sha }}"
+          sed -i "s|metasfresh/metas-app:.*|${{ env.REGISTRY }}/${{ env.PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" versions.yaml
+          
+          # Hoặc sửa trực tiếp values.yaml
+          sed -i "s|tag: .*|tag: \"${{ github.sha }}\"|g" charts/erp-adapter/values.yaml
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git checkout -b update-image-${{ github.sha }}
+          git add versions.yaml charts/erp-adapter/values.yaml
+          git commit -m "chore: update app image to ${{ github.sha }}"
+          git push origin update-image-${{ github.sha }}
+          
+          echo "Tạo PR tới repo GitOps (Sử dụng gh cli)"
+          # gh pr create --title "Update App image to ${{ github.sha }}" --body "Auto-generated PR from CI" --base main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITOPS_TOKEN }}

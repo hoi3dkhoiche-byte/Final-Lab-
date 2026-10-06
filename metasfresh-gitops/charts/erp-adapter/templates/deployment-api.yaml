@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metasfresh-api
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      app: metasfresh-api
+  template:
+    metadata:
+      labels:
+        app: metasfresh-api
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.api.nodeSelector | nindent 8 }}
+      containers:
+        - name: api
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          env:
+            - name: APP_HOST
+              value: "metasfresh-core"
+            - name: DB_HOST
+              value: "{{ .Values.externalDB.pgHost }}"
+            - name: DB_PORT
+              value: "{{ .Values.externalDB.pgPort }}"
+            - name: RABBITMQ_HOST
+              value: "{{ .Values.externalDB.rabbitHost }}"
+            - name: ES_HOST
+              value: "{{ .Values.externalDB.searchHost }}"
+            - name: ES_PORT
+              value: "{{ .Values.externalDB.searchPort }}"
