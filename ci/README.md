@@ -12,7 +12,7 @@ on findings. No exclusion, ignore rule or success override is added.
 Build variables: HARBOR_REGISTRY (TLS hostname without scheme), HARBOR_PROJECT.
 Secrets: CI_HARBOR_USERNAME, CI_HARBOR_TOKEN, METASFRESH_PACKAGES_READ_TOKEN.
 Dedicated Linux runner labels: self-hosted, linux, cmc-lab. Install Docker/buildx,
-Trivy, compatible PostgreSQL clients, AWS CLI, Python, Helm, gh, kubectl, kubeseal.
+Trivy, compatible PostgreSQL clients, AWS CLI, Python, Helm and gh.
 Pin tool versions in runner inventory. Trusted main builds only; protect main.
 Build tests source, scans every image before any push and uploads release metadata.
 Deploy is manual: provide a successful main build_run_id. It verifies provenance
@@ -26,23 +26,6 @@ Argo must use charts/erp-adapter/values.yaml without overriding image values.
 Resolve the sample Application repo URL and absent environment values at bootstrap.
 Migration needs backup, version guard and a single executor; digest rollback does
 not undo database schema changes. Validate login/order flow and PG/seed compatibility.
-
-## Google API key
-
-Repository/environment secret: GOOGLE_API_KEY. Use a new rotated key if a real key
-was previously exposed; Git history is not erased by this change. This checkout
-contained only a short placeholder in the historical migration, now removed.
-No real key is supplied or automatically stored in GitHub by this code change.
-Deploy reads the optional GitHub Secret and seals it to erp/google-api-key using
-variable SEALED_SECRETS_CERT_BASE64 (base64 of the controller PUBLIC certificate).
-It writes only SealedSecret ciphertext to the GitOps chart, enables secretKeyRef
-for Core/API and removes temporary plaintext files. No cluster credentials needed.
-Bootstrap Sealed Secrets before enabling Maps; back up private sealing keys outside
-Git. The namespace must be erp. Runtime GOOGLE_API_KEY overrides the legacy DB key.
-Maps still requires an active GoogleMaps GeocodingConfig row. Restart Core/API after
-key rotation because env values are read at process startup. Google Maps browser
-usage exposes its key to the browser by design: restrict Google APIs and referrers,
-and use separate browser/server keys for deployments requiring different restrictions.
 
 ## Database operations
 

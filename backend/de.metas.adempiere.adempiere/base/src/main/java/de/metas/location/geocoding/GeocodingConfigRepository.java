@@ -77,7 +77,7 @@ public class GeocodingConfigRepository
 		else if (GeocodingProviderName.GOOGLE_MAPS.equals(providerName))
 		{
 			googleMapsConfig = GoogleMapsConfig.builder()
-					.apiKey(resolveGoogleApiKey(record))
+					.apiKey(record.getgmaps_ApiKey())
 					.cacheCapacity(record.getcacheCapacity())
 					.build();
 			openStreetMapsConfig = null;
@@ -103,14 +103,5 @@ public class GeocodingConfigRepository
 				.openStreetMapsConfig(openStreetMapsConfig)
 				.build();
 		return Optional.of(geocodingConfig);
-	}
-
-	/** Runtime Secret overrides legacy database configuration; never embed keys in images. */
-	private static String resolveGoogleApiKey(final I_GeocodingConfig record)
-	{
-		final String runtimeKey = System.getenv("GOOGLE_API_KEY");
-		return runtimeKey != null && !runtimeKey.trim().isEmpty()
-				? runtimeKey.trim()
-				: record.getgmaps_ApiKey();
 	}
 }

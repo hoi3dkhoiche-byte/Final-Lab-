@@ -24,7 +24,6 @@ jobs:
         run: |
           bash -n ci/build-lab.sh
           bash -n ci/database.sh
-          bash -n ci/seal-google-key.sh
           python -m unittest discover -s ci -p 'test_*.py'
       - uses: azure/setup-helm@v4.3.0
         with:

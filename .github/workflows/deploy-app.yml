@@ -50,11 +50,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install PyYAML==6.0.2
-      - name: Seal optional Google API key
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          SEALED_SECRETS_CERT_BASE64: ${{ vars.SEALED_SECRETS_CERT_BASE64 }}
-        run: bash ci/seal-google-key.sh
       - name: Update digest lock and open review PR
         env:
           GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
@@ -69,11 +64,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add versions.yaml charts/erp-adapter/values.yaml
-          if test -f charts/erp-adapter/templates/google-api-sealed-secret.yaml; then
-            git add charts/erp-adapter/templates/google-api-sealed-secret.yaml
-          fi
           if git diff --cached --quiet; then echo 'Release already current'; exit 0; fi
           git commit -m "chore: promote ERP build $BUILD_RUN_ID"
           git push origin "$branch"
-          printf 'Build: %s\nReview all three image digests and sealed configuration before merging. Argo CD owns deployment. Migration requires a separate release runbook.\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/gitops-pr.md"
+          printf 'Build: %s\nReview all three image digests before merging. Argo CD owns deployment. Migration requires a separate release runbook.\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/gitops-pr.md"
           gh pr create --repo "$GITOPS_REPOSITORY" --base "$GITOPS_BASE_BRANCH" --head "$branch" --title "Promote ERP build $BUILD_RUN_ID" --body-file "$RUNNER_TEMP/gitops-pr.md"

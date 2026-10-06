@@ -31,8 +31,6 @@ def update(root, evidence_dir, build, registry, project, repository):
         image_repo = f'{registry}/{project}/{image}'
         values[component]['image'].update(repository=image_repo, tag='', digest=digest)
         images[key] = f'{image_repo}@{digest}'
-    if (root / 'charts/erp-adapter/templates/google-api-sealed-secret.yaml').exists():
-        values.setdefault('googleMaps', {}).update(enabled=True, secretName='google-api-key')
     lock.update(images=images, source_commit=source, pipeline_url=build['html_url'])
     values_path.write_text(yaml.safe_dump(values, sort_keys=False))
     lock_path.write_text(yaml.safe_dump(lock, sort_keys=False))
