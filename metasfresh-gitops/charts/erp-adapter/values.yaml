@@ -74,3 +74,7 @@ ingress:
   enabled: true
   className: "haproxy"
   host: "erp.yourdomain.com"
+
+googleMaps:
+  enabled: false
+  secretName: google-api-key

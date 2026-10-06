@@ -28,6 +28,13 @@ spec:
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           env:
+            {{- if .Values.googleMaps.enabled }}
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.googleMaps.secretName }}
+                  key: GOOGLE_API_KEY
+            {{- end }}
             - name: APP_HOST
               value: "metasfresh-core"
             - name: DB_HOST

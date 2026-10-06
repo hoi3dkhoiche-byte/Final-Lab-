@@ -830,7 +830,7 @@ UPDATE AD_Field SET DisplayLogic='@GeocodingProviders@=OpenStreetMaps | @Geocodi
 
 -- 2019-09-26T09:01:24.651Z
 -- I forgot to set the DICTIONARY_ID_COMMENTS System Configurator
-UPDATE AD_Column SET DefaultValue='AIza...',Updated=TO_TIMESTAMP('2019-09-26 12:01:24','YYYY-MM-DD HH24:MI:SS'),UpdatedBy=100 WHERE AD_Column_ID=568977
+UPDATE AD_Column SET DefaultValue=NULL,Updated=TO_TIMESTAMP('2019-09-26 12:01:24','YYYY-MM-DD HH24:MI:SS'),UpdatedBy=100 WHERE AD_Column_ID=568977
 ;
 
 -- 2019-09-26T09:01:50.042Z
@@ -1332,4 +1332,3 @@ UPDATE AD_Element_Trl SET IsTranslated='Y',Updated=TO_TIMESTAMP('2019-09-26 12:3
 -- I forgot to set the DICTIONARY_ID_COMMENTS System Configurator
 /* DDL */  select update_TRL_Tables_On_AD_Element_TRL_Update(577128,'en_US') 
 ;
-

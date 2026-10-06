@@ -1,0 +1,49 @@
+name: Seed Database
+on:
+  workflow_dispatch:
+    inputs:
+      target_database:
+        description: Pre-created EMPTY isolated lab_restore_* or lab_seed_* database
+        required: true
+        type: string
+      backup_key:
+        description: S3 object key of custom-format PostgreSQL dump
+        required: true
+        type: string
+      expected_sha256:
+        description: Trusted SHA256 from backup manifest or verified seed release
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: lab-database-operations
+  cancel-in-progress: false
+jobs:
+  database:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, cmc-lab]
+    environment: lab-seed
+    timeout-minutes: 60
+    env:
+      PGHOST: ${{ vars.PGHOST }}
+      PGPORT: ${{ vars.PGPORT || '5432' }}
+      PGUSER: ${{ secrets.PGUSER }}
+      PGPASSWORD: ${{ secrets.PGPASSWORD }}
+      PGSSLMODE: ${{ vars.PGSSLMODE || 'verify-full' }}
+      PGSSLROOTCERT: ${{ vars.PGSSLROOTCERT }}
+      PGDATABASE: ${{ vars.PGDATABASE }}
+      PRODUCTION_DATABASE: ${{ vars.PGDATABASE }}
+      S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+      BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ vars.S3_REGION }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+      TARGET_DATABASE: ${{ inputs.target_database }}
+      BACKUP_KEY: ${{ inputs.backup_key }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Database operation
+        run: bash ci/database.sh seed

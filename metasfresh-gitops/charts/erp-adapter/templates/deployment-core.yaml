@@ -28,6 +28,13 @@ spec:
           resources:
             {{- toYaml .Values.core.resources | nindent 12 }}
           env:
+            {{- if .Values.googleMaps.enabled }}
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.googleMaps.secretName }}
+                  key: GOOGLE_API_KEY
+            {{- end }}
             - name: DB_HOST
               value: "{{ .Values.externalDB.pgHost }}"
             - name: DB_PORT

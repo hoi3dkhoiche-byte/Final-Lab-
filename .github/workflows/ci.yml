@@ -1,31 +1,45 @@
-name: LAB Build and GitOps PR
+name: Build and Push Docker Images
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+    paths: ['backend/**', 'frontend/**', 'misc/parent-pom/**', 'misc/de-metas-common/**', 'docker-builds/**', 'ci/**', 'metasfresh-gitops/**', '.github/workflows/**']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: lab-${{ github.ref }}
+  group: lab-build-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: bash -n ci/build-lab.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install PyYAML==6.0.2
+      - name: Check scripts and promotion guards
+        run: |
+          bash -n ci/build-lab.sh
+          bash -n ci/database.sh
+          bash -n ci/seal-google-key.sh
+          python -m unittest discover -s ci -p 'test_*.py'
       - uses: azure/setup-helm@v4.3.0
         with:
           version: v3.16.4
-      - run: helm lint metasfresh-gitops/charts/erp-adapter
-      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      - name: Validate chart
+        run: |
+          helm lint metasfresh-gitops/charts/erp-adapter
+          helm template erp metasfresh-gitops/charts/erp-adapter > rendered.yaml
+      - name: Scan repository secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scanners: secret
           exit-code: '1'
-  release:
+  build:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: [self-hosted, linux, cmc-lab]
@@ -33,31 +47,25 @@ jobs:
     env:
       HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
       HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
-      GITOPS_REPOSITORY: ${{ vars.GITOPS_REPOSITORY }}
-      GITOPS_BASE_BRANCH: ${{ vars.GITOPS_BASE_BRANCH || 'main' }}
       RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       METASFRESH_PACKAGES_READ_TOKEN: ${{ secrets.METASFRESH_PACKAGES_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check configuration
+      - name: Check runner and configuration
         env:
-          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
           HARBOR_USER: ${{ secrets.CI_HARBOR_USERNAME }}
           HARBOR_TOKEN: ${{ secrets.CI_HARBOR_TOKEN }}
         run: |
           set -euo pipefail
-          for key in HARBOR_REGISTRY HARBOR_PROJECT GITOPS_REPOSITORY METASFRESH_PACKAGES_READ_TOKEN GH_TOKEN HARBOR_USER HARBOR_TOKEN; do
+          for key in HARBOR_REGISTRY HARBOR_PROJECT METASFRESH_PACKAGES_READ_TOKEN HARBOR_USER HARBOR_TOKEN; do
             test -n "${!key}" || { echo "::error::Missing $key"; exit 1; }
           done
-          for tool in docker python3 helm gh trivy; do command -v "$tool"; done
+          for tool in docker python3 trivy; do command -v "$tool"; done
           docker info >/dev/null
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install PyYAML==6.0.2
-      - name: Build and test source
+          docker buildx version
+      - name: Build source and test
         run: bash ci/build-lab.sh
-      - name: Scan every image before push
+      - name: Scan all images before publishing
         run: |
           set -euo pipefail
           for image in metas-app metas-api metas-frontend; do
@@ -68,7 +76,7 @@ jobs:
           registry: ${{ env.HARBOR_REGISTRY }}
           username: ${{ secrets.CI_HARBOR_USERNAME }}
           password: ${{ secrets.CI_HARBOR_TOKEN }}
-      - name: Push and capture digests
+      - name: Push and record release evidence
         run: |
           set -euo pipefail
           for image in metas-app metas-api metas-frontend; do
@@ -77,31 +85,14 @@ jobs:
             docker push "$target"
             docker buildx imagetools inspect "$target" --format '{{json .Manifest}}' > "ci-output/$image.json"
           done
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GITOPS_REPOSITORY }}
-          ref: ${{ env.GITOPS_BASE_BRANCH }}
-          token: ${{ secrets.GITOPS_TOKEN }}
-          path: gitops-release
-      - name: Update GitOps and create PR
-        env:
-          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
-        run: |
-          set -euo pipefail
-          python ci/update_gitops.py
-          helm lint gitops-release/charts/erp-adapter
-          helm template erp gitops-release/charts/erp-adapter > ci-output/rendered.yaml
-          cd gitops-release
-          branch="release/$RELEASE_ID"
-          git checkout -b "$branch"
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add versions.yaml charts/erp-adapter/values.yaml
-          git commit -m "chore: release ERP $RELEASE_ID"
-          git push origin "$branch"
-          printf 'Source: %s\nPipeline: %s\nReview all three image digests before merging. Argo CD owns deployment. Migration requires a separate backup and release runbook.\n' "$GITHUB_SHA" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > "$RUNNER_TEMP/release-pr.md"
-          gh pr create --repo "$GITOPS_REPOSITORY" --base "$GITOPS_BASE_BRANCH" --head "$branch" --title "Release ERP $RELEASE_ID" --body-file "$RUNNER_TEMP/release-pr.md"
-      - if: always()
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          evidence = {name: os.environ[name] for name in ('GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'HARBOR_REGISTRY', 'HARBOR_PROJECT', 'RELEASE_ID')}
+          Path('ci-output/release.json').write_text(json.dumps(evidence))
+          PY
+      - name: Remove temporary credentials
+        if: always()
         run: rm -f ci-output/settings.xml
       - uses: actions/upload-artifact@v4
         if: always()
@@ -109,5 +100,5 @@ jobs:
           name: lab-evidence
           path: |
             ci-output/*.json
-            ci-output/*.yaml
             ci-output/reports/**/*.xml
+          retention-days: 14

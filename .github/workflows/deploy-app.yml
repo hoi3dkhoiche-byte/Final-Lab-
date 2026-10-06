@@ -1,0 +1,79 @@
+name: Deploy to Kubernetes - App Cluster (GitOps)
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build and Push run ID from main
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: lab-gitops-promotion
+  cancel-in-progress: false
+jobs:
+  promote:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, cmc-lab]
+    environment: lab-release
+    timeout-minutes: 20
+    env:
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
+      HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
+      GITOPS_REPOSITORY: ${{ vars.GITOPS_REPOSITORY }}
+      GITOPS_BASE_BRANCH: ${{ vars.GITOPS_BASE_BRANCH || 'main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful trusted build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/build-run.json"
+          python3 ci/verify_build.py "$RUNNER_TEMP/build-run.json"
+      - uses: actions/download-artifact@v4
+        with:
+          name: lab-evidence
+          path: ci-output
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPOSITORY }}
+          ref: ${{ env.GITOPS_BASE_BRANCH }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops-release
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install PyYAML==6.0.2
+      - name: Seal optional Google API key
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          SEALED_SECRETS_CERT_BASE64: ${{ vars.SEALED_SECRETS_CERT_BASE64 }}
+        run: bash ci/seal-google-key.sh
+      - name: Update digest lock and open review PR
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          set -euo pipefail
+          python ci/update_gitops.py --build-run "$RUNNER_TEMP/build-run.json"
+          helm lint gitops-release/charts/erp-adapter
+          helm template erp gitops-release/charts/erp-adapter > ci-output/rendered.yaml
+          cd gitops-release
+          branch="release/build-$BUILD_RUN_ID-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git checkout -b "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add versions.yaml charts/erp-adapter/values.yaml
+          if test -f charts/erp-adapter/templates/google-api-sealed-secret.yaml; then
+            git add charts/erp-adapter/templates/google-api-sealed-secret.yaml
+          fi
+          if git diff --cached --quiet; then echo 'Release already current'; exit 0; fi
+          git commit -m "chore: promote ERP build $BUILD_RUN_ID"
+          git push origin "$branch"
+          printf 'Build: %s\nReview all three image digests and sealed configuration before merging. Argo CD owns deployment. Migration requires a separate release runbook.\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/gitops-pr.md"
+          gh pr create --repo "$GITOPS_REPOSITORY" --base "$GITOPS_BASE_BRANCH" --head "$branch" --title "Promote ERP build $BUILD_RUN_ID" --body-file "$RUNNER_TEMP/gitops-pr.md"
