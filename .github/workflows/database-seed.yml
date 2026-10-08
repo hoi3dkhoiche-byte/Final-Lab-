@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 60
     env:
       PGHOST: ${{ vars.PGHOST }}
+      PG_EXPECTED_MAJOR: ${{ vars.PG_EXPECTED_MAJOR || '18' }}
       PGPORT: ${{ vars.PGPORT || '5432' }}
       PGUSER: ${{ secrets.PGUSER }}
       PGPASSWORD: ${{ secrets.PGPASSWORD }}

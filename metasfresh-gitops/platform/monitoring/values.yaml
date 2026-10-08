@@ -1,0 +1,186 @@
+fullnameOverride: monitoring
+defaultRules:
+  create: true
+  appNamespacesTarget: "erp|monitoring|argocd|ingress-system|sealed-secrets|velero"
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+    windows: false
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeEtcd: {enabled: false}
+kubeProxy: {enabled: false}
+windowsMonitoring: {enabled: false}
+prometheusOperator:
+  nodeSelector:
+    cmc-cloud-k8s-nodegroups: nodegroup-monitoring
+  tolerations:
+    - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+  resources:
+    requests: {cpu: 100m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 128Mi}
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        cmc-cloud-k8s-nodegroups: nodegroup-monitoring
+      tolerations:
+        - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+      resources:
+        requests: {cpu: 50m, memory: 32Mi}
+        limits: {cpu: 100m, memory: 64Mi}
+  prometheusConfigReloader:
+    resources:
+      requests: {cpu: 10m, memory: 16Mi}
+      limits: {cpu: 100m, memory: 32Mi}
+prometheus:
+  service: {type: ClusterIP}
+  ingress: {enabled: false}
+  prometheusSpec:
+    replicas: 1
+    retention: 24h
+    retentionSize: 2GiB
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    nodeSelector:
+      cmc-cloud-k8s-nodegroups: nodegroup-monitoring
+    tolerations:
+      - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {cpu: 1500m, memory: 1Gi}
+    serviceMonitorSelector:
+      matchLabels: {release: monitoring}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelector:
+      matchLabels: {release: monitoring}
+    podMonitorNamespaceSelector: {}
+    ruleSelector:
+      matchLabels: {release: monitoring}
+    storageSpec:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
+        spec:
+          storageClassName: null
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests: {storage: 10Gi}
+    additionalScrapeConfigs: []
+alertmanager:
+  service: {type: ClusterIP}
+  ingress: {enabled: false}
+  alertmanagerSpec:
+    replicas: 1
+    useExistingSecret: true
+    configSecret: alertmanager-config
+    nodeSelector:
+      cmc-cloud-k8s-nodegroups: nodegroup-monitoring
+    tolerations:
+      - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 250m, memory: 128Mi}
+    storage:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
+        spec:
+          storageClassName: null
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests: {storage: 2Gi}
+grafana:
+  replicas: 1
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  nodeSelector:
+    cmc-cloud-k8s-nodegroups: nodegroup-monitoring
+  tolerations:
+    - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  service: {type: ClusterIP}
+  ingress: {enabled: false}
+  deploymentStrategy: {type: Recreate}
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: null
+    accessModes: [ReadWriteOnce]
+    size: 2Gi
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  initChownData:
+    resources:
+      requests: {cpu: 10m, memory: 16Mi}
+      limits: {cpu: 100m, memory: 32Mi}
+  sidecar:
+    resources:
+      requests: {cpu: 10m, memory: 16Mi}
+      limits: {cpu: 100m, memory: 32Mi}
+    dashboards:
+      resource: configmap
+      searchNamespace: monitoring
+    datasources:
+      resource: configmap
+      searchNamespace: monitoring
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      access: proxy
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      editable: false
+  grafana.ini:
+    users:
+      allow_sign_up: false
+    auth.anonymous:
+      enabled: false
+kube-state-metrics:
+  nodeSelector:
+    cmc-cloud-k8s-nodegroups: nodegroup-monitoring
+  tolerations:
+    - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+  resources:
+    requests: {cpu: 50m, memory: 32Mi}
+    limits: {cpu: 250m, memory: 64Mi}
+prometheus-node-exporter:
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - {key: dedicated, operator: Equal, value: platform, effect: NoSchedule}
+    - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 64Mi}
+additionalPrometheusRulesMap:
+  erp-lab:
+    groups:
+      - name: erp.lab
+        rules:
+          - alert: ErpDeploymentUnavailable
+            expr: kube_deployment_status_replicas_available{namespace="erp",deployment=~"metasfresh-.*"} < 1
+            for: 2m
+            labels: {severity: critical}
+            annotations:
+              summary: ERP deployment has no available replica
+          - alert: ErpContainerRestarting
+            expr: increase(kube_pod_container_status_restarts_total{namespace="erp"}[15m]) > 3
+            for: 2m
+            labels: {severity: warning}
+            annotations:
+              summary: ERP container restarted more than three times in fifteen minutes
+          - alert: ErpDataExporterDown
+            expr: up{job=~"erp-postgres|erp-rabbit|erp-search"} == 0
+            for: 2m
+            labels: {severity: critical}
+            annotations:
+              summary: A configured ERP data exporter is unreachable

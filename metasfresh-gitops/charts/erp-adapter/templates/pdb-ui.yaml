@@ -1,0 +1,13 @@
+{{- if .Values.ui.disruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: metasfresh-ui
+  namespace: {{ include "erp.namespace" . }}
+  labels:
+    {{- include "erp.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.ui.disruptionBudget.minAvailable }}
+  selector:
+    matchLabels: {app: metasfresh-ui}
+{{- end }}

@@ -1,76 +1,201 @@
-# Default values for erp-adapter.
+# Generic rendering defaults. Real CMC deployments MUST set validation.strict=true.
+validation:
+  strict: false
 
 global:
   namespace: erp
+  registry: ""
   imagePullSecrets:
     - name: harbor-pull
 
-# Core ERP
+runtime:
+  propertiesSecret:
+    name: erp-properties
+    key: metasfresh.properties
+    # Change this revision after rotating either runtime Secret to restart the pods.
+    revision: ""
+  rabbitmqSecret:
+    name: erp-rabbit-secret
+    usernameKey: username
+    passwordKey: password
+
+# Generic/local rendering leaves TLS off. Strict CMC deployment requires verify-full.
+databaseTLS:
+  enabled: false
+  mode: verify-full
+  secretName: erp-postgres-ca
+  key: ca.crt
+  mountPath: /etc/metasfresh/db-ca/ca.crt
+
+serviceAccount:
+  create: true
+  name: erp-app
+
+persistence:
+  # CMC CSI StorageClass must be confirmed before enabling strict deployment.
+  storageClass: ""
+
 core:
   replicaCount: 1
   image:
     repository: metasfresh/metas-app
     tag: "5.175"
+    digest: ""
     pullPolicy: IfNotPresent
   resources:
-    requests:
-      cpu: 1000m
-      memory: 3Gi
-    limits:
-      cpu: 2000m
-      memory: 4Gi
-  nodeSelector:
-    workload: app
+    requests: {cpu: 1000m, memory: 3Gi}
+    limits: {cpu: 2000m, memory: 4Gi}
+  nodeSelector: {cmc-cloud-k8s-nodegroups: nodegroup-gd6u}
+  tolerations: []
+  podSecurityContext: {}
+  securityContext: {allowPrivilegeEscalation: false}
+  javaOptions: "-Xms512m -Xmx2048m"
+  extraEnv: []
+  persistence:
+    enabled: true
+    existingClaim: ""
+    size: 20Gi
+    mountPath: /opt/metasfresh/data
+  probes:
+    startup:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 120
+    readiness:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    # Avoid restart loops when an external dependency is unavailable.
+    liveness:
+      tcpSocket: {port: http}
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
 
-# Web API
 api:
   replicaCount: 1
   image:
     repository: metasfresh/metas-api
     tag: "5.175"
+    digest: ""
     pullPolicy: IfNotPresent
   resources:
-    requests:
-      cpu: 1000m
-      memory: 2Gi
-    limits:
-      cpu: 2000m
-      memory: 3Gi
-  nodeSelector:
-    workload: app
+    requests: {cpu: 1000m, memory: 2Gi}
+    limits: {cpu: 2000m, memory: 3Gi}
+  nodeSelector: {cmc-cloud-k8s-nodegroups: nodegroup-gd6u}
+  tolerations: []
+  podSecurityContext: {}
+  securityContext: {allowPrivilegeEscalation: false}
+  javaOptions: "-Xms256m -Xmx1536m"
+  extraEnv: []
+  persistence:
+    enabled: true
+    existingClaim: ""
+    size: 20Gi
+    mountPath: /var/lib/metasfresh/api
+  probes:
+    startup:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 120
+    readiness:
+      httpGet: {path: /health, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    liveness:
+      tcpSocket: {port: http}
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
 
-# Web UI / Frontend
 ui:
   replicaCount: 2
   image:
     repository: metasfresh/metas-frontend
     tag: "5.175"
+    digest: ""
     pullPolicy: IfNotPresent
   resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-  nodeSelector:
-    workload: app
+    requests: {cpu: 200m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+  nodeSelector: {cmc-cloud-k8s-nodegroups: nodegroup-gd6u}
+  tolerations: []
+  podSecurityContext: {}
+  securityContext: {allowPrivilegeEscalation: false}
+  extraEnv: []
+  config:
+    # Same-origin paths work through the Ingress without build-time substitution.
+    apiUrl: /rest/api
+    websocketUrl: /stomp
   autoscaling:
-    enabled: true
+    enabled: false
     minReplicas: 2
     maxReplicas: 4
     targetCPUUtilizationPercentage: 60
+  disruptionBudget:
+    enabled: true
+    minAvailable: 1
+  probes:
+    startup:
+      httpGet: {path: /config.js, port: http}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 30
+    readiness:
+      httpGet: {path: /, port: http}
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    liveness:
+      httpGet: {path: /, port: http}
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
 
-# External dependencies (VMs)
+# Host values configure the application; CIDRs configure NetworkPolicy independently.
+# With replication, pgHost must be the write primary, never a read-only replica.
 externalDB:
-  pgHost: "pg.erp.local"
+  pgHost: ""
   pgPort: 5432
-  rabbitHost: "rabbit.erp.local"
+  pgCIDR: ""
+  rabbitHost: ""
   rabbitPort: 5672
-  searchHost: "search.erp.local"
+  rabbitCIDR: ""
+  searchHost: ""
   searchPort: 9200
+  searchCIDR: ""
+  # The as-built Elasticsearch VM only publishes HTTP9200.
+  # Enable this only after verifying a pinned image requires transport9300.
+  searchTransportPort: 0
 
 ingress:
   enabled: true
-  className: "haproxy"
-  host: "erp.yourdomain.com"
+  className: haproxy
+  host: ""
+  tlsSecretName: erp-origin-tls
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+  ingressController:
+    namespace: ingress-system
+    # Empty selects all pods within the dedicated ingress namespace.
+    podSelector: {}
+  dns:
+    namespace: kube-system
+    podSelector: {k8s-app: kube-dns}
+    additionalCIDRs: []
+  # Optional approved integrations; each peer gets its own port list.
+  # Example: [{cidr: "10.60.50.25/32", ports: [443]}]
+  backendAdditionalEgress: []
+
+metrics:
+  # Enabling this requires verifying the image exposes an authenticated/allowed endpoint.
+  enabled: false
+  path: /prometheus
+  namespace: monitoring
+  podSelector: {app.kubernetes.io/name: prometheus}

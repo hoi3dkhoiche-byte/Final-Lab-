@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metasfresh-frontend-config
+  namespace: {{ include "erp.namespace" . }}
+  labels:
+    {{- include "erp.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  config.js: |
+    {{- include "erp.frontendConfig" . | nindent 4 }}

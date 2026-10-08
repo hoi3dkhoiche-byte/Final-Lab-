@@ -1,0 +1,65 @@
+id,source_component,source_addresses,destination_component,destination_addresses,protocol,destination_ports,purpose,configuration,status_or_required_input
+VPN01,OpenVPN client,ADMIN_PUBLIC_CIDRS_REQUIRED,pfSense EIP/WAN,203.205.45.207 -> 10.60.10.78,UDP,1194,VPN quản trị,OpenVPN server và sg-pfsense-wan,Endpoint xác nhận; cần CIDR client và phép thử
+VPN02,OpenVPN client,10.61.60.0/24,Bastion ADMIN,10.60.50.20,TCP,22,SSH qua VPN,OpenVPN allow SSH và LAN SNAT source10.60.50.78,SG Bastion chỉ nhận10.60.50.78/32
+VPN03,OpenVPN client,10.61.60.0/24,pfSense LAN,10.60.50.78,TCP,443,GUI pfSense qua VPN,OpenVPN hostroute và self firewall access,Kiểm chứng rule thực tế
+ADMIN01,Bastion ADMIN,10.60.50.20,pfSense LAN,10.60.50.78,TCP,443,SSH tunnel GUI,sg-pfsense-lan và local forward,Endpoint xác nhận
+ADMIN02,Bastion MGMT,10.60.60.20,PA01 management,10.60.60.11,TCP,22;443,SSH/GUI PAN-OS,sg-pa-mgmt và management permitted sources,Endpoint xác nhận
+ADMIN03,Bastion MGMT,10.60.60.20,PA02 management,10.60.60.12,TCP,22;443,SSH/GUI peer,sg-pa-mgmt và management permitted sources,Mapping PA02 phải đối chiếu MAC
+ADMIN04,Bastion ADMIN,10.60.50.20,Harbor/Runner VM,10.60.50.30,TCP,22;443,SSH và registry HTTPS,sg-harbor-runner; HarborCA trust,Harbor xác nhận; runner đăng ký cần kiểm chứng
+ADMIN05,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,Managed RDS primary,10.60.40.113,TCP,5432,psql quản trị,RDS access control và TLS; admin role tách runtime,Managed RDS18 rds_postgres-erp; khôngSSH22
+ADMIN06,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,Managed RDS read endpoints,10.60.40.126;10.60.40.45,TCP,5432,psql read endpoint nếu cấp quyền,RDS access control và TLS,CMCquảnlý MasterSlave; khôngmanualPGVM hoặc failovercode
+ADMIN07,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,Rabbit VM,10.60.40.104,TCP,22,SSH và tunnel managementlocalhost15672,sg-rabbit và SSHforward,Không mởdirect15672 vì bind127.0.0.1
+ADMIN08,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,Search VM,10.60.40.30,TCP,22,SSH và tunnel API kiểm tra,sg-search và SSHforward,Endpoint xác nhận; clusterhealth chưa nghiệm thu
+ADMIN09,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,Private CaaS API,10.60.30.62,TCP,6443,kubectl/Helm/bootstrap,CaaS API access; kubeconfig ngoàiGit,Endpoint xác nhận; RBAC và đường đi cần kiểm chứng
+ADMIN10,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,APP workers,10.60.30.140;10.60.30.240;10.60.30.80,TCP,22,SSH chẩn đoán nếu CMC hỗ trợ,WorkerSG Bastiononly và keypair,Privateonly; provider rules cần rà soát
+ADMIN11,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,MON worker,10.60.65.115,TCP,22,SSH chẩn đoán,sg-caas-monitoring và provider SSH contract,Ready/providerinit cần kiểm chứng
+ADMIN12,Bastion route-source,10.60.50.20 EXPECTED_VERIFY_ROUTE,PLATFORM worker,10.60.66.135,TCP,22,SSH chẩn đoán,sg-caas-platform và provider SSH contract,Ready/providerinit cần kiểm chứng
+ADMIN13,Bastion qua kube-apiserver,10.60.30.62:6443,Argo/Grafana/Alertmanager,CLUSTERIP_DNS_FROM_RENDERED_MANIFEST,TCP,PORT_FORWARD_THROUGH_6443,Quản trị UI private,kubectl port-forward hoặc SSH tunnel Bastion,Không publicELB quản trị
+ADMIN14,ecs-mgmt,10.60.60.227;10.60.20.170,Không sử dụng,NONE,NONE,NONE,Giữ inventory,Không tạo ruleworkload mới,UNUSED_NO_ALLOW
+ERP01,Cloudflare/client thử được phép,CLOUDFLARE_CIDRS_OR_TEST_PUBLIC32_REQUIRED,pfSense EIP/WAN,203.205.45.207 -> 10.60.10.78,TCP,443,HTTPS ERP sharedEIP,pfSenseWAN DNAT và WAN SNAT tớiPA,PLANNED_NOT_TESTED
+ERP02,pfSense WAN sauSNAT,10.60.10.78,PA UNTRUST VIP,10.60.10.100,TCP,443,Chuyển ERP tớiPA,PFsourceSNAT10.60.10.78; sg-pa-untrust,PA01UNTRUSTethernet1/1
+ERP03,Cloudflare/client qua EIPERP riêng,CLOUDFLARE_CIDRS_OR_TEST_PUBLIC32_REQUIRED,PA UNTRUST VIP,ERP_EIP_REQUIRED -> 10.60.10.100,TCP,443,Thay thếERP01/02,CMC EIPVIP/AAP/failover xác nhận,OPTIONAL_NOT_PROVISIONED
+ERP04,PA TRUST sauSNAT,10.60.20.100,Private ELB VIP,ELB_VIP_IN_TRUST_REQUIRED,TCP,443,TCP TLS passthrough,NATPA kết hợpDNAT/SNAT; ELB allowedCIDR10.60.20.100/32,VIP_REQUIRED; TRUSTethernet1/2
+ERP05,ELB backend source,ELB_BACKEND_SOURCE_CIDRS_REQUIRED,APP NodePort HTTPS,10.60.30.140;10.60.30.240;10.60.30.80,TCP,31443,ELB tới HAProxy,ingress-system/haproxy-ingress Local; backendSG,Nguồn phải đo trênCMC; không mặcđịnhPAIP
+ERP06,ELB health source,ELB_HEALTH_SOURCE_CIDRS_REQUIRED,APP Service healthCheckNodePort,10.60.30.140;10.60.30.240;10.60.30.80,TCP,32042,Health cho LoadBalancer Local,CMC generatedhealthmonitor vàSG; confirm HTTPhealthz nếu dùng,ChỉLoadBalancermode; nodekhôngpodlocalReady cóthể unhealthy
+ERP07,Manual ELB health source,ELB_HEALTH_SOURCE_CIDRS_REQUIRED,APP NodePort HTTPS,10.60.30.140;10.60.30.240;10.60.30.80,TCP,31443,HealthTCP cho manualELB,ServiceNodePortmode; manualpoolhealthTCP,OPTIONAL_FALLBACK; khônghealthCheckNodePortfield
+ERP08,HAProxy Ingress pods,namespace ingress-system,ERP UI ClusterIP,metasfresh-ui.erp.svc.cluster.local,TCP,80,Rootroute tớiUI,IngressTLS và NetworkPolicyIngress->UI,UIstaticpod khônggọiAPI
+ERP09,HAProxy Ingress pods,namespace ingress-system,ERP API ClusterIP,metasfresh-api.erp.svc.cluster.local,TCP,8080,/rest/api và /stomp,IngressTLS/WebSocket và NetworkPolicyIngress->API,Browser gọiquaorigin
+ERP10,ERP API pods,namespace erp;app metasfresh-api,ERP Core ClusterIP,metasfresh-core.erp.svc.cluster.local,TCP,8282,API tớiCore,NetworkPolicy sourceegress vàdestinationingress,KhôngRPC/debugport chưa chứng minh
+DATA01,ERP Core/API pods,PODIP_OR_APP_NODE_SNAT_VERIFY,Managed RDS write primary,10.60.40.113,TCP,5432,ERP JDBC write/read primary,RuntimeSecret; NetworkPolicy; RDS clientACL vàTLS,User08OctRDS18; metasfresh5.175compatibility cần test
+DATA02,ERP Core/API pods,PODIP_OR_APP_NODE_SNAT_VERIFY,Rabbit AMQP,10.60.40.104,TCP,5672,Message broker,RuntimeSecret; vhost /; NetworkPolicy vàsg-rabbit,Endpoint xácnhận; credential ngoàiGit
+DATA03,ERP Core/API pods,PODIP_OR_APP_NODE_SNAT_VERIFY,Elasticsearch HTTP,10.60.40.30,TCP,9200,SearchREST,Runtimeproperties; NetworkPolicy vàsg-search,Khôngmở9300 mặc định; pinnedimagecontract cần test
+DATA04,CMC managed RDS internal,PROVIDER_MANAGED,RDS MasterSlave replication,PROVIDER_MANAGED,PROVIDER_MANAGED,PROVIDER_MANAGED,Replication dịch vụRDS,CMCquảnlý; khôngmanualSGpeer hoặcSSH,ReadIPs khôngchứng minh ERPreadrouting hoặcfailover đã test
+REG01,APP container runtime,10.60.30.140;10.60.30.240;10.60.30.80,Harbor registry,10.60.50.30,TCP,443,PullAPPimages,containerdCA; namespacepullonlySecret; SGHarbor,KiểmtraCAtrust từngnode
+REG02,PLATFORM container runtime,10.60.66.135,Harbor registry,10.60.50.30,TCP,443,Pullplatformimages,containerdCA; namespacepullSecret; SGHarbor,Providerinit phải hoàn tất
+REG03,MON container runtime,10.60.65.115,Harbor registry,10.60.50.30,TCP,443,Pullmonitorimages,containerdCA; namespacepullSecret; SGHarbor,Providerinit phải hoàn tất
+REG04,GitHub self-hosted runner,10.60.50.30 EXPECTED,Harbor registry,10.60.50.30,TCP,443,Push/pullCIimages,CIrobotpush; DockerCA trust,Runner colocated; K8spullrobot riêng
+CI01,Runner,10.60.50.30 EXPECTED,GitHub/package/image upstream,GITHUB_PACKAGES_REGISTRY_HOSTS_REQUIRED,TCP,443,Checkout Actions Maven image download,OutboundGitHub/packageCDN allowlist và packages token,Không kubeconfigproduction ởbuildjob
+GIT01,Argo repository server,namespace argocd;PLATFORMsource verify,GitOps HTTPS repository,https://github.com/hoi3dkhoiche-byte/GitOps-final-lab.git,TCP,443,GitOpsfetch,Argo scopedrepocredential; DNS/HTTPSegress,Repo riêng user08Octconfirmed
+GIT02,Argo/SealedSecrets/Velero controllers,PLATFORMpodsource verify,Private CaaS API,10.60.30.62,TCP,6443,Controller API,ServiceAccount RBAC vàegress; API sourceverify,PodAPI routingquaServiceDNAT cầnkiểm chứng
+GIT03,Controllers quaAPI Service,PodCIDR10.100.0.0/16,Kubernetes API ClusterIP,kubernetes.default.svc,TCP,443,APIServiceVIP,NetworkPolicy phùhợp DNAT6443,ĐọcClusterIP từkubectl; không giả định10.254.0.1
+BACKUP01,Velero server PLATFORM,PLATFORMpodsource verify,S3 backup endpoint,S3_ENDPOINT_REQUIRED,TCP,443,Backup K8smetadata/BSL,VeleroS3Secret; bucket/region/CA; egress,INPUT_REQUIRED; không thaypg_dumpmanagedRDS
+BACKUP02,Velero node-agent APP,APPnode/podsource verify,S3 backup endpoint,S3_ENDPOINT_REQUIRED,TCP,443,FSB PVCAPP,Nodeagent/tolerations/volumeannotation; egress,Đo và testrestoreERPfilesPVC
+BACKUP03,Velero node-agent MON/PLATFORM,MON_PLATFORMnode/podsource verify,S3 backup endpoint,S3_ENDPOINT_REQUIRED,TCP,443,FSBmonitor/platformPVC nếu scopechọn,Nodeagenttolerations vàsupportedCSI,CONDITIONAL_SCOPE
+BACKUP04,Database backup/restore runner,10.60.50.30 EXPECTED,Managed RDS write primary,10.60.40.113,TCP,5432,pg_dump vàrestorecôlập,PGsecrets; client>=18; TLSCA; RDS clientACL,DBtestlab_restore_/lab_seed_only; khôngrestoreproduction
+BACKUP05,Database backup/restore runner,10.60.50.30 EXPECTED,S3 backup endpoint,S3_ENDPOINT_REQUIRED,TCP,443,PGdump upload/downloadchecksum,S3secret; privatebucket; egress,INPUT_REQUIRED endpoint/bucket/region/CA
+BACKUP06,Search VM snapshot plugin,10.60.40.30,S3 snapshot repository,S3_SEARCH_ENDPOINT_REQUIRED,TCP,443,Elasticsearch snapshot nếu triểnkhai,repository-s3plugin7.9.3compatible; privatebucketcredential,CONDITIONAL_NOT_CONFIGURED; khôngVeleroVMdisk
+BACKUP07,Admin backupjob quaBastion,BASTION_ROUTE_SOURCE_REQUIRED,Rabbit VM SSH,10.60.40.104,TCP,22,Exportdefinitions/dependencybackup nếu chọn,SSHtunnel/privaterole vàbackupscope được xácnhận,CONDITIONAL_NOT_CONFIGURED; khôngautomaticallydumpmessages
+MON01,Prometheus MON,namespace monitoring,PostgreSQL exporter ClusterIP,PG_EXPORTER_SERVICE_DNS_REQUIRED,TCP,9187,MetricsmanagedRDS,Exporter KubernetesMON; Podmonitor/NetworkPolicy,Không mở9187 trênRDSIP
+MON02,PostgreSQL exporter MON,MON_POD_OR_NODE_EGRESS_SOURCE_VERIFY,Managed RDS primary,10.60.40.113,TCP,5432,MonitoringSQLqueries,Dedicatedreadonlymonitorrole; RDS clientACL; TLS,Không dùngRDSadmin/SUPERUSER; cầnrole/schema quyền
+MON03,PostgreSQL exporter MON,MON_POD_OR_NODE_EGRESS_SOURCE_VERIFY,Managed RDS read endpoints,10.60.40.126;10.60.40.45,TCP,5432,ReplicaSQLmetricsnếu cần,ExporterDSNrole vàRDSACL riêng,CONDITIONAL_ENDPOINT_SCOPE; khônghostnodeexporterRDS
+MON04,Prometheus MON,MON_EGRESS_SOURCE_VERIFY,Rabbit exporter,10.60.40.104,TCP,RABBIT_EXPORTER_PORT_REQUIRED,MetricsRabbit,Exporter/plugin3.7.4compatible vàcredential,Không mặcđịnhnative15692; exporter chưa xácnhận
+MON05,Prometheus MON,MON_EGRESS_SOURCE_VERIFY,Elasticsearch exporter,10.60.40.30,TCP,9114,MetricsSearch,Exporterprivate; SGsearchMON; scrapeconfig,CONDITIONAL_EXPORTER_INSTALLED
+MON06,Elasticsearch exporter,LOCAL_SEARCH_SOURCE,ElasticsearchHTTP,10.60.40.30,TCP,9200,Exporterqueries,PrivateESqueries,CONDITIONAL_EXPORTER_INSTALLED
+MON07,Prometheus MON,MON_EGRESS_SOURCE_VERIFY,Node exporters VM,10.60.40.104;10.60.40.30;10.60.50.30,TCP,9100,OS/data diskmetrics,Exporterprivate; dedicatedSGMON,Khôngnodeexporter trênmanagedRDS
+MON08,Prometheus MON,namespace monitoring,Worker kubelet metrics,10.60.30.140;10.60.30.240;10.60.30.80;10.60.65.115;10.60.66.135,TCP,10250,Kubelet/cAdvisor,ServiceAccountAuth/TLS/providerSG,KhôngInternetaccess
+MON09,Alloy agents,APP_MON_PLATFORMpodsources,Loki ClusterIP,LOKI_SERVICE_DNS_FROM_RENDER,TCP,3100,Pushlogs,NetworkPolicyagents->Loki; RBAC,ClusterIPonly
+MON10,Alertmanager,namespace monitoring,Notification target,NOTIFICATION_ENDPOINT_REQUIRED,TCP,443,Alertreceivernếu bật,ReceiverSecret vàexplicitegress,OPTIONAL_INPUT_REQUIRED; khôngtựgửi
+HA01,PA01HA1,10.60.71.11,PA02HA1,10.60.71.12,TCP,28260;28769,CleartextHA1control,PeeronlySG; PANOSHA General/configsync,Doc07Octencryptionunchecked; verifyactualbothpeers
+HA02,PA02HA1,10.60.71.12,PA01HA1,10.60.71.11,TCP,28260;28769,CleartextHA1control,PeeronlySG,Nếuencryption bật confirmTCP28contract
+HA03,PA peersHA1,10.60.71.11;10.60.71.12,PA peersHA1,10.60.71.11;10.60.71.12,ICMP,N/A,HAheartbeat,PeeronlySG,Không mởHA toànVPC
+HA04,PA01HA2,10.60.72.11,PA02HA2,10.60.72.12,UDP,29281,SessionSyncUDP,PeeronlySG; HA2sync/keepalive,ModeUDPghi nhận; failover cầntest
+HA05,PA02HA2,10.60.72.12,PA01HA2,10.60.72.11,UDP,29281,Keepalive vàsync khi đổi vai,PeeronlySG,Failover chưanghiệmthu
+COMMON01,Pods cầnDNS,PodCIDR10.100.0.0/16,CoreDNS,COREDNS_SERVICE_ENDPOINTS_REQUIRED,TCP;UDP,53,ClusterDNS,NetworkPolicyCoreDNSselectors,Khôngall-egress chữaDNS
+COMMON02,VM/nodes/firewalls,VM_NODE_ADDRESSES,ApprovedDNS,DNS_RESOLVERS_REQUIRED,TCP;UDP,53,DNSngoàicluster,SGegressapprovedresolvers,INPUT_REQUIRED
+COMMON03,VM/nodes/firewalls,VM_NODE_ADDRESSES,ApprovedNTP,NTP_SERVERS_REQUIRED,UDP,123,TimeTLS/VPN/token,SGegressapprovedNTP,INPUT_REQUIRED

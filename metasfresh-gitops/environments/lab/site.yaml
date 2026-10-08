@@ -1,0 +1,130 @@
+# Non-secret inventory. Empty strings require real CMC/user input before deployment.
+# Reference: infrastructure document 2026-10-07; RDS/GitOps confirmed 2026-10-08.
+schemaVersion: 1
+gitops:
+  repository: https://github.com/hoi3dkhoiche-byte/GitOps-final-lab.git
+  revision: main
+  rootPath: ""
+erp:
+  namespace: erp
+  domain: ""
+  tlsSecretName: erp-origin-tls
+  propertiesSecret: erp-properties
+  rabbitSecret: erp-rabbit-secret
+  secretRevision: ""
+  coreExistingClaim: ""
+  apiExistingClaim: ""
+cluster:
+  name: kubernetes-final-lab
+  apiServer: https://10.60.30.62:6443
+  kubernetesVersion: v1.35.3
+  cni: Calico
+  podCIDR: 10.100.0.0/16
+  serviceCIDR: 10.254.0.0/16
+  storageClass: ""
+  nodeGroupLabel: cmc-cloud-k8s-nodegroups
+  pools:
+    app: {name: nodegroup-gd6u, addresses: [10.60.30.140, 10.60.30.240, 10.60.30.80]}
+    monitoring: {name: nodegroup-monitoring, addresses: [10.60.65.115]}
+    platform: {name: nodegroup-platform, addresses: [10.60.66.135]}
+network:
+  subnets:
+    untrust: 10.60.10.0/24
+    trustElb: 10.60.20.0/24
+    app: 10.60.30.0/24
+    data: 10.60.40.0/24
+    admin: 10.60.50.0/24
+    mgmt: 10.60.60.0/24
+    monitoring: 10.60.65.0/24
+    platform: 10.60.66.0/24
+    ha1: 10.60.71.0/24
+    ha2: 10.60.72.0/24
+  vpn:
+    gateway: pfSense
+    publicIP: 203.205.45.207
+    wan: 10.60.10.78
+    lan: 10.60.50.78
+    tunnelCIDR: 10.61.60.0/24
+    port: 1194
+    protocol: UDP
+  bastion: {admin: 10.60.50.20, mgmt: 10.60.60.20}
+  paloalto:
+    untrustInterface: ethernet1/1
+    untrustVIP: 10.60.10.100
+    trustInterface: ethernet1/2
+    trustVIP: 10.60.20.100
+    management: [10.60.60.11, 10.60.60.12]
+  # Document records an unused VM; it is not a mandatory hop.
+  unusedMgmtVM: {mgmt: 10.60.60.227, trust: 10.60.20.170}
+ingress:
+  serviceMode: LoadBalancer
+  controllerNamespace: ingress-system
+  controllerSelector:
+    app.kubernetes.io/name: kubernetes-ingress
+    app.kubernetes.io/instance: haproxy
+  elb:
+    class: cmc-loadbalancer-private
+    flavorID: a80cfbb4-326b-4819-8e67-58eca8495490
+    vipSubnetID: ""
+    memberSubnetID: ""
+    vip: ""
+    backendSourceCIDRs: []
+    healthSourceCIDRs: []
+    allowedSources: [10.60.20.100/32]
+  nodePort: 31443
+  healthCheckNodePort: 32042
+harbor:
+  registry: 10.60.50.30
+  project: metasfresh
+  scheme: https
+  caSourcePath: /opt/harbor/pki/ca.crt
+  workerRuntimeTrustVerified: false
+  pullSecret: harbor-pull
+postgres:
+  managed: true
+  engine: PostgreSQL
+  major: 18
+  instanceName: rds_postgres-erp
+  instanceID: 34257c3b-46b2-4eef-befb-12e6cd59734e
+  mode: Master Slave
+  primary: 10.60.40.113
+  readReplicas: [10.60.40.126, 10.60.40.45]
+  port: 5432
+  database: ""
+  applicationUser: ""
+  backupUser: ""
+  failoverEndpoint: ""
+  sslMode: verify-full
+  # CA/certificate SAN must match the chosen host; never disable verification.
+  runnerRootCertPath: ""
+  caSecret: erp-postgres-ca
+  compatibilityEvidence: ""
+rabbitmq:
+  host: 10.60.40.104
+  port: 5672
+  vhost: /
+  version: 3.7.4-management
+  managementBind: 127.0.0.1:15672
+  exporterTarget: ""
+search:
+  host: 10.60.40.30
+  port: 9200
+  version: 7.9.3
+  scheme: http
+  transportPort: 0
+  exporterTarget: ""
+backup:
+  endpoint: ""
+  region: ""
+  postgresBucket: ""
+  veleroBucket: ""
+  endpointCIDRs: []
+  repositorySecret: velero-repo-credentials
+monitoring:
+  grafanaSecret: grafana-admin
+  alertmanagerSecret: alertmanager-config
+  pgExporterTarget: ""
+rbac:
+  # Supply real identity-provider groups before generating bindings.
+  readonlyGroup: ""
+  operatorGroup: ""

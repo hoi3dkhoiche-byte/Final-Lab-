@@ -115,3 +115,11 @@ tmp/
 graphify-out/
 
 /ci-output/
+
+# Cloud deployment private inputs
+/metasfresh-gitops/private-inputs/
+/metasfresh-gitops/**/__pycache__/
+/metasfresh-gitops/platform-render/
+/metasfresh-gitops/rendered/
+
+/metasfresh-gitops/.rendered/

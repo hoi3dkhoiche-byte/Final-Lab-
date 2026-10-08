@@ -159,7 +159,9 @@ public final class CConnection implements Serializable, Cloneable
 		}
 		catch (Exception e)
 		{
-			log.error("Failed loading the connection from attributes: {}", attributes, e);
+			// Serialized attributes contain the DB password; do not log them or arbitrary exception messages.
+			log.error("Failed loading database connection: host={}, port={}, database={}, errorType={}",
+					cc.getDbHost(), cc.getDbPort(), cc.getDbName(), e.getClass().getSimpleName());
 			return null;
 		}
 	}

@@ -56,8 +56,9 @@ jobs:
         run: |
           set -euo pipefail
           python ci/update_gitops.py --build-run "$RUNNER_TEMP/build-run.json"
-          helm lint gitops-release/charts/erp-adapter
-          helm template erp gitops-release/charts/erp-adapter > ci-output/rendered.yaml
+          python gitops-release/scripts/preflight.py --phase erp
+          helm lint gitops-release/charts/erp-adapter --strict --namespace erp -f gitops-release/environments/lab/values-lab.yaml
+          helm template erp gitops-release/charts/erp-adapter --namespace erp -f gitops-release/environments/lab/values-lab.yaml > ci-output/rendered.yaml
           cd gitops-release
           branch="release/build-$BUILD_RUN_ID-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           git checkout -b "$branch"

@@ -1,0 +1,90 @@
+image:
+  tag: v1.18.1
+nodeSelector:
+  cmc-cloud-k8s-nodegroups: nodegroup-platform
+tolerations:
+  - {key: dedicated, operator: Equal, value: platform, effect: NoSchedule}
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 500m, memory: 256Mi}
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.14.0
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - {name: plugins, mountPath: /target}
+credentials:
+  useSecret: true
+  existingSecret: s3-velero
+configuration:
+  uploaderType: kopia
+  defaultVolumesToFsBackup: false
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: null
+      default: true
+      accessMode: ReadWrite
+      credential: {name: s3-velero, key: cloud}
+      config:
+        region: null
+        s3Url: null
+        s3ForcePathStyle: "true"
+        insecureSkipTLSVerify: "false"
+        checksumAlgorithm: ""
+  volumeSnapshotLocation: []
+  repositoryMaintenanceJob:
+    repositoryConfigData:
+      global:
+        keepLatestMaintenanceJobs: 1
+        podResources:
+          cpuRequest: 100m
+          cpuLimit: 500m
+          memoryRequest: 128Mi
+          memoryLimit: 256Mi
+backupsEnabled: true
+snapshotsEnabled: false
+deployNodeAgent: true
+nodeAgent:
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - {key: dedicated, operator: Equal, value: platform, effect: NoSchedule}
+    - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+  extraArgs:
+    - --node-agent-configmap=velero-node-agent
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  podSecurityContext:
+    runAsUser: 0
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    additionalLabels: {release: monitoring}
+  nodeAgentPodMonitor:
+    enabled: true
+    additionalLabels: {release: monitoring}
+upgradeCRDs: true
+cleanUpCRDs: false
+schedules: {}
+extraObjects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: velero-node-agent
+      namespace: velero
+    data:
+      node-agent-config.json: |
+        {
+          "loadConcurrency": {"globalConfig": 1},
+          "podResources": {
+            "cpuRequest": "100m",
+            "cpuLimit": "500m",
+            "memoryRequest": "128Mi",
+            "memoryLimit": "256Mi",
+            "ephemeralStorageRequest": "1Gi",
+            "ephemeralStorageLimit": "2Gi"
+          }
+        }

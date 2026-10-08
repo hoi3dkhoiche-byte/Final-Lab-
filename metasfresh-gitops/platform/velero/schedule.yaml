@@ -1,0 +1,18 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: erp-daily
+  namespace: velero
+spec:
+  # Unpause only after a successful restore rehearsal and DB/files coordination.
+  paused: true
+  schedule: "0 18 * * *"
+  template:
+    ttl: 168h0m0s
+    includedNamespaces: [erp]
+    snapshotVolumes: false
+    defaultVolumesToFsBackup: false
+    storageLocation: default
+    excludedResources: [events, events.events.k8s.io]
+# UTC 18:00 is 01:00 Asia/Saigon. This excludes PG/Rabbit/Search on VMs.
+# Each business-data volume must have backup.velero.io/backup-volumes annotation.

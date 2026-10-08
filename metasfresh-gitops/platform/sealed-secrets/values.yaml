@@ -1,0 +1,12 @@
+fullnameOverride: sealed-secrets-controller
+replicaCount: 1
+nodeSelector:
+  cmc-cloud-k8s-nodegroups: nodegroup-platform
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: platform
+    effect: NoSchedule
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {cpu: 250m, memory: 128Mi}

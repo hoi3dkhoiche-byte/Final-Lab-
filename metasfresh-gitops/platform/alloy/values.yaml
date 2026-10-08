@@ -1,0 +1,75 @@
+controller:
+  type: daemonset
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - {key: dedicated, operator: Equal, value: platform, effect: NoSchedule}
+    - {key: dedicated, operator: Equal, value: monitoring, effect: NoSchedule}
+crds: {create: false}
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: [pods, pods/log, namespaces]
+      verbs: [get, list, watch]
+  clusterRules:
+    - apiGroups: [""]
+      resources: [nodes]
+      verbs: [get, list, watch]
+alloy:
+  enableReporting: false
+  extraEnv:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef: {fieldPath: spec.nodeName}
+    - {name: GOMEMLIMIT, value: 96MiB}
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 128Mi}
+  configMap:
+    content: |
+      discovery.kubernetes "local_pods" {
+        role = "pod"
+        selectors {
+          role = "pod"
+          field = "spec.nodeName=" + sys.env("NODE_NAME")
+        }
+      }
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.local_pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label = "node"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app"]
+          target_label = "app"
+        }
+      }
+      loki.source.kubernetes "pod_logs" {
+        targets = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.local.receiver]
+      }
+      loki.write "local" {
+        endpoint {
+          url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+        }
+      }
+configReloader:
+  resources:
+    requests: {cpu: 10m, memory: 16Mi}
+    limits: {cpu: 100m, memory: 32Mi}
+service:
+  type: ClusterIP

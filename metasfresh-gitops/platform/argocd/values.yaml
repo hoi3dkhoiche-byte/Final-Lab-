@@ -1,0 +1,64 @@
+global:
+  nodeSelector:
+    cmc-cloud-k8s-nodegroups: nodegroup-platform
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: platform
+      effect: NoSchedule
+configs:
+  cm:
+    admin.enabled: "true"
+    users.anonymous.enabled: "false"
+    accounts.erp-viewer: login
+    accounts.erp-operator: login
+  params:
+    server.insecure: "false"
+  rbac:
+    policy.default: ""
+    policy.csv: |
+      p, role:erp-viewer, applications, get, erp/*, allow
+      p, role:erp-operator, applications, get, erp/*, allow
+      p, role:erp-operator, applications, sync, erp/*, allow
+      g, erp-viewer, role:erp-viewer
+      g, erp-operator, role:erp-operator
+  secret:
+    createSecret: true
+controller:
+  replicas: 1
+  resources:
+    requests: {cpu: 250m, memory: 256Mi}
+    limits: {cpu: 1000m, memory: 768Mi}
+repoServer:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 1000m, memory: 384Mi}
+server:
+  replicas: 1
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+redis:
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 128Mi}
+redisSecretInit:
+  resources:
+    requests: {cpu: 50m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 64Mi}
+dex:
+  enabled: false
+applicationSet:
+  replicas: 0
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 128Mi}
+notifications:
+  enabled: false
+redis-ha:
+  enabled: false

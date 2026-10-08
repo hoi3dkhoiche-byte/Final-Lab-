@@ -1,0 +1,52 @@
+# Exact upstream chart packages; update only after render and compatibility review.
+kubernetesVersion: "1.35.3"
+charts:
+  - release: argocd
+    namespace: argocd
+    repo: https://argoproj.github.io/argo-helm
+    chart: argo-cd
+    version: "10.10.0"
+    values: argocd/values.yaml
+    phase: base
+  - release: sealed-secrets
+    namespace: sealed-secrets
+    repo: https://bitnami.github.io/sealed-secrets
+    chart: sealed-secrets
+    version: "2.19.1"
+    values: sealed-secrets/values.yaml
+    phase: base
+  - release: monitoring
+    namespace: monitoring
+    repo: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    version: "92.1.0"
+    values: monitoring/values.yaml
+    phase: platform
+  - release: loki
+    namespace: monitoring
+    repo: https://grafana.github.io/helm-charts
+    chart: loki
+    version: "7.3.0"
+    values: loki/values.yaml
+    phase: platform
+  - release: alloy
+    namespace: monitoring
+    repo: https://grafana.github.io/helm-charts
+    chart: alloy
+    version: "1.13.0"
+    values: alloy/values.yaml
+    phase: platform
+  - release: velero
+    namespace: velero
+    repo: https://vmware-tanzu.github.io/helm-charts
+    chart: velero
+    version: "12.1.0"
+    values: velero/values.yaml
+    phase: platform
+  - release: haproxy
+    namespace: ingress-system
+    repo: https://haproxytech.github.io/helm-charts
+    chart: kubernetes-ingress
+    version: "1.54.2"
+    values: ingress/values.yaml
+    phase: platform

@@ -1,0 +1,161 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-default-deny
+  namespace: {{ include "erp.namespace" . }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-allow-dns
+  namespace: {{ include "erp.namespace" . }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dns.namespace }}
+          podSelector:
+            {{- toYaml .Values.networkPolicy.dns.podSelector | nindent 12 }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    {{- range .Values.networkPolicy.dns.additionalCIDRs }}
+    - to:
+        - ipBlock: {cidr: {{ . | quote }}}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    {{- end }}
+{{- range $component := list "ui" "api" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-ingress-to-{{ $component }}
+  namespace: {{ include "erp.namespace" $ }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector:
+    matchLabels: {app: metasfresh-{{ $component }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.ingressController.namespace }}
+          podSelector:
+            {{- toYaml $.Values.networkPolicy.ingressController.podSelector | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ if eq $component "ui" }}80{{ else }}8080{{ end }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-api-to-core-egress
+  namespace: {{ include "erp.namespace" . }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector:
+    matchLabels: {app: metasfresh-api}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: metasfresh-core}
+      ports:
+        - {protocol: TCP, port: 8282}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-api-to-core-ingress
+  namespace: {{ include "erp.namespace" . }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector:
+    matchLabels: {app: metasfresh-core}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: metasfresh-api}
+      ports:
+        - {protocol: TCP, port: 8282}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-backend-to-data
+  namespace: {{ include "erp.namespace" . }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [metasfresh-core, metasfresh-api]
+  policyTypes: [Egress]
+  egress:
+    {{- if or .Values.externalDB.pgCIDR .Values.externalDB.rabbitCIDR .Values.externalDB.searchCIDR .Values.networkPolicy.backendAdditionalEgress }}
+    {{- range $peer := list (dict "cidr" .Values.externalDB.pgCIDR "port" .Values.externalDB.pgPort) (dict "cidr" .Values.externalDB.rabbitCIDR "port" .Values.externalDB.rabbitPort) (dict "cidr" .Values.externalDB.searchCIDR "port" .Values.externalDB.searchPort) }}
+    {{- if $peer.cidr }}
+    - to:
+        - ipBlock: {cidr: {{ $peer.cidr | quote }}}
+      ports:
+        - {protocol: TCP, port: {{ $peer.port }}}
+    {{- end }}
+    {{- end }}
+    {{- if and .Values.externalDB.searchCIDR (gt (int .Values.externalDB.searchTransportPort) 0) }}
+    - to:
+        - ipBlock: {cidr: {{ .Values.externalDB.searchCIDR | quote }}}
+      ports:
+        - {protocol: TCP, port: {{ .Values.externalDB.searchTransportPort }}}
+    {{- end }}
+    {{- range .Values.networkPolicy.backendAdditionalEgress }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr | quote }}}
+      ports:
+        {{- range .ports }}
+        - {protocol: TCP, port: {{ . }}}
+        {{- end }}
+    {{- end }}
+    {{- else }} []
+    {{- end }}
+{{- if .Values.metrics.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: erp-monitoring-to-backend
+  namespace: {{ include "erp.namespace" . }}
+  annotations: {argocd.argoproj.io/sync-wave: "-5"}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [metasfresh-core, metasfresh-api]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.metrics.namespace }}
+          podSelector:
+            {{- toYaml .Values.metrics.podSelector | nindent 12 }}
+      ports:
+        - {protocol: TCP, port: 8282}
+        - {protocol: TCP, port: 8080}
+{{- end }}
+{{- end }}

@@ -4,25 +4,24 @@ metadata:
   name: erp
   namespace: argocd
 spec:
-  description: Project for ERP application workloads
+  description: Reviewed ERP workloads and encrypted runtime secrets
+  # Populated from GITOPS_REPO_URL by platform/bootstrap.py.
   sourceRepos:
-    - '*' # Thay bằng URL repo gitops thực tế khi có
+    - https://github.com/hoi3dkhoiche-byte/GitOps-final-lab.git
   destinations:
     - namespace: erp
       server: https://kubernetes.default.svc
-    - namespace: ingress-system
-      server: https://kubernetes.default.svc
-  clusterResourceWhitelist:
-    - group: ''
-      kind: PersistentVolumeClaim
-    - group: networking.k8s.io
-      kind: Ingress
-  namespaceResourceBlacklist:
-    - group: ''
-      kind: ResourceQuota
-    - group: ''
-      kind: LimitRange
-    - group: rbac.authorization.k8s.io
-      kind: RoleBinding
-    - group: rbac.authorization.k8s.io
-      kind: Role
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - {group: apps, kind: Deployment}
+    - {group: "", kind: Service}
+    - {group: "", kind: ConfigMap}
+    - {group: "", kind: PersistentVolumeClaim}
+    - {group: "", kind: ServiceAccount}
+    - {group: networking.k8s.io, kind: Ingress}
+    - {group: networking.k8s.io, kind: NetworkPolicy}
+    - {group: autoscaling, kind: HorizontalPodAutoscaler}
+    - {group: policy, kind: PodDisruptionBudget}
+    - {group: bitnami.com, kind: SealedSecret}
+  orphanedResources:
+    warn: true

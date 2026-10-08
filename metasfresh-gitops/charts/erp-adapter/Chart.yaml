@@ -1,6 +1,6 @@
 apiVersion: v2
 name: erp-adapter
-description: A Helm chart for deploying metasfresh ERP (adapted for CMC Cloud)
+description: metasfresh ERP on CMC CaaS with external database, RabbitMQ and Elasticsearch
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "5.175"

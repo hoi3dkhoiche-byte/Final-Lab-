@@ -1,15 +1,27 @@
+{{- range $component := list "core" "api" }}
+{{- $cfg := index $.Values $component }}
+{{- if and $cfg.persistence.enabled (not $cfg.persistence.existingClaim) }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: core-business-pvc
-  namespace: {{ .Values.global.namespace }}
+  name: {{ include "erp.claimName" (dict "root" $ "component" $component) }}
+  namespace: {{ include "erp.namespace" $ }}
+  labels:
+    app: metasfresh-{{ $component }}
+    {{- include "erp.labels" $ | nindent 4 }}
   annotations:
     argocd.argoproj.io/sync-wave: "10"
-    # Ngăn chặn xóa tự động trong ArgoCD
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
     helm.sh/resource-policy: keep
 spec:
   accessModes:
     - ReadWriteOnce
+  {{- with $.Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
   resources:
     requests:
-      storage: 20Gi
+      storage: {{ $cfg.persistence.size }}
+{{- end }}
+{{- end }}
