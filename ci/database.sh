@@ -21,12 +21,29 @@ Path(os.environ['PGPASSFILE']).write_text(':'.join(map(escape, fields)) + '\n')
 PY
 unset PGPASSWORD
 s3() { aws --endpoint-url "$S3_ENDPOINT" s3 "$@"; }
+verify_pg_tools() {
+  # Workflows set this to the actual RDS major. Local legacy callers can omit it.
+  if [[ -z "${PG_EXPECTED_MAJOR:-}" ]]; then return 0; fi
+  [[ "$PG_EXPECTED_MAJOR" =~ ^[0-9]+$ ]] || { echo 'Invalid PG_EXPECTED_MAJOR'; exit 1; }
+  local server_num server_major client_version client_major tool
+  server_num="$(psql -XAt -v ON_ERROR_STOP=1 -c 'SHOW server_version_num;')"
+  [[ "$server_num" =~ ^[0-9]+$ ]] || { echo 'Cannot determine PostgreSQL server version'; exit 1; }
+  server_major=$((server_num / 10000))
+  test "$server_major" -eq "$PG_EXPECTED_MAJOR" || { echo 'PostgreSQL server major differs from configured RDS'; exit 1; }
+  for tool in pg_dump pg_restore; do
+    client_version="$("$tool" --version)"
+    [[ "$client_version" =~ ([0-9]+)\. ]] || { echo 'Cannot determine PostgreSQL client version'; exit 1; }
+    client_major="${BASH_REMATCH[1]}"
+    test "$client_major" -ge "$server_major" || { echo 'PostgreSQL client is older than server; install PostgreSQL18 tools'; exit 1; }
+  done
+}
 if [[ "$mode" == backup ]]; then
   : "${PGDATABASE:?}"
   [[ "$PGDATABASE" =~ ^[a-zA-Z][a-zA-Z0-9_]{0,62}$ ]] || exit 1
   id="$(date -u +%Y%m%dT%H%M%SZ)-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
   key="postgres/$PGDATABASE/$id.dump"
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  verify_pg_tools
   pg_dump --format=custom --file="$work/database.dump"
   checksum="$(sha256sum "$work/database.dump" | cut -d ' ' -f1)"
   printf '%s  database.dump\n' "$checksum" > "$work/database.dump.sha256"
@@ -42,6 +59,7 @@ else
   [[ "$EXPECTED_SHA256" =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid expected checksum'; exit 1; }
   [[ "$BACKUP_KEY" != /* && "$BACKUP_KEY" != *'..'* && "$BACKUP_KEY" != *$'\n'* ]] || exit 1
   export PGDATABASE="$TARGET_DATABASE"
+  verify_pg_tools
   count="$(psql -XAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind IN ('r','p','v','m','S','f');")"
   test "$count" = 0 || { echo 'Target is not empty'; exit 1; }
   s3 cp "s3://$BACKUP_BUCKET/$BACKUP_KEY" "$work/database.dump" --only-show-errors

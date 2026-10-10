@@ -20,24 +20,27 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install PyYAML==6.0.2
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.16.4
       - name: Check scripts and promotion guards
         run: |
           bash -n ci/build-lab.sh
           bash -n ci/database.sh
           python -m unittest discover -s ci -p 'test_*.py'
-      - uses: azure/setup-helm@v4.3.0
-        with:
-          version: v3.16.4
       - name: Validate chart
         run: |
-          helm lint metasfresh-gitops/charts/erp-adapter
-          helm template erp metasfresh-gitops/charts/erp-adapter > rendered.yaml
+          helm lint metasfresh-gitops/charts/erp-adapter --strict
+          helm template erp metasfresh-gitops/charts/erp-adapter --namespace erp > rendered.yaml
       - name: Scan repository secrets
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scanners: secret
           exit-code: '1'
+          trivyignores: '.trivyignore'
+        env:
+          TRIVY_SKIP_FILES: 'misc/services/procurement-webui/nginx/configs/certs/nginx-selfsigned.key'
   build:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: validate

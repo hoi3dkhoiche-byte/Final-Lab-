@@ -2,13 +2,17 @@ apiVersion: v1
 kind: Service
 metadata:
   name: metasfresh-api
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ include "erp.namespace" . }}
+  labels:
+    app: metasfresh-api
+    {{- include "erp.labels" . | nindent 4 }}
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  selector:
-    app: metasfresh-api
+  type: ClusterIP
+  selector: {app: metasfresh-api}
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 8080
-      targetPort: 8080
+      targetPort: http

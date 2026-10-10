@@ -36,7 +36,11 @@ class PromotionTests(unittest.TestCase):
         values = {'global': {'namespace': 'erp'}}
         for component, image in [('core', 'metas-app'), ('api', 'metas-api'), ('ui', 'metas-frontend')]:
             values[component] = {'image': {'repository': 'old', 'tag': 'old'}}
-            (chart / f'templates/deployment-{component}.yaml').write_text(f'.Values.{component}.image.digest')
+            template = ('image: "{{ .Values.COMPONENT.image.repository }}'
+                        '{{ if .Values.COMPONENT.image.digest }}@{{ .Values.COMPONENT.image.digest }}'
+                        '{{ else }}:{{ .Values.COMPONENT.image.tag }}{{ end }}"')
+            (chart / f'templates/deployment-{component}.yaml').write_text(
+                template.replace('COMPONENT', component))
             (root / f'{image}.json').write_text(json.dumps({'digest': 'sha256:' + 'b' * 64}))
         (chart / 'values.yaml').write_text(yaml.safe_dump(values))
         (root / 'versions.yaml').write_text('images: {}\n')
@@ -78,6 +82,74 @@ class PromotionTests(unittest.TestCase):
                 self.assertEqual(values[component]['image']['tag'], '')
             self.assertEqual(len(lock['images']), 3)
             self.assertEqual(lock['source_commit'], 'a' * 40)
+
+
+    def real_chart_fixture(self, directory):
+        root, chart = self.fixture(directory)
+        source = Path(__file__).resolve().parents[1] / 'metasfresh-gitops/charts/erp-adapter'
+        shutil.copytree(source, chart, dirs_exist_ok=True)
+        return root, chart
+
+    def test_promotion_accepts_real_helper_wrappers_and_sets_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, chart = self.real_chart_fixture(directory)
+            update(root, root, self.run, 'harbor.example', 'erp', 'team/lab')
+            values = yaml.safe_load((chart / 'values.yaml').read_text(encoding='utf-8'))
+            self.assertEqual(values['global']['registry'], 'harbor.example')
+            for component, image in [('core', 'metas-app'), ('api', 'metas-api'),
+                                     ('ui', 'metas-frontend')]:
+                self.assertEqual(values[component]['image']['repository'],
+                                 'harbor.example/erp/' + image)
+                self.assertEqual(values[component]['image']['digest'], 'sha256:' + 'b' * 64)
+                self.assertEqual(values[component]['image']['tag'], '')
+
+    def test_other_helper_digest_marker_cannot_hide_broken_deployment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, chart = self.real_chart_fixture(directory)
+            helper = chart / 'templates/_helpers.tpl'
+            text = helper.read_text(encoding='utf-8').replace('$cfg.image.digest', '$cfg.image.tag')
+            text += '\n{{ define "unrelated" }} .Values.ui.image.digest {{ end }}\n'
+            helper.write_text(text, encoding='utf-8')
+            before = [(path, path.read_bytes()) for path in
+                      (chart / 'values.yaml', root / 'versions.yaml')]
+            with self.assertRaisesRegex(ValueError, 'digest-aware chart'):
+                update(root, root, self.run, 'harbor.example', 'erp', 'team/lab')
+            for path, content in before:
+                self.assertEqual(path.read_bytes(), content)
+
+    def test_wrapper_for_wrong_component_blocks_release_without_writes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, chart = self.real_chart_fixture(directory)
+            template = chart / 'templates/deployment-api.yaml'
+            template.write_text(template.read_text().replace('"api"', '"core"'))
+            before = [(path, path.read_bytes()) for path in
+                      (chart / 'values.yaml', root / 'versions.yaml')]
+            with self.assertRaisesRegex(ValueError, 'digest-aware chart'):
+                update(root, root, self.run, 'harbor.example', 'erp', 'team/lab')
+            for path, content in before:
+                self.assertEqual(path.read_bytes(), content)
+
+    def test_promoted_real_chart_renders_all_three_digest_images(self):
+        helm = os.environ.get('TEST_HELM') or shutil.which('helm')
+        if not helm:
+            self.skipTest('Helm is unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            root, chart = self.real_chart_fixture(directory)
+            update(root, root, self.run, 'harbor.example', 'erp', 'team/lab')
+            result = subprocess.run([helm, 'template', 'erp', str(chart), '--namespace', 'erp',
+                                     '--set', 'validation.strict=false'],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            deployments = [doc for doc in yaml.safe_load_all(result.stdout)
+                           if doc and doc.get('kind') == 'Deployment']
+            self.assertEqual(len(deployments), 3)
+            for document in deployments:
+                component = document['spec']['template']['spec']['containers'][0]['name']
+                expected_image = {'core': 'metas-app', 'api': 'metas-api',
+                                  'ui': 'metas-frontend'}[component]
+                image = document['spec']['template']['spec']['containers'][0]['image']
+                self.assertEqual(image, 'harbor.example/erp/' + expected_image +
+                                 '@sha256:' + 'b' * 64)
 
 class DatabaseGuardTests(unittest.TestCase):
     def bash(self):

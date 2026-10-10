@@ -280,9 +280,13 @@ public class DB_PostgreSQL implements AdempiereDatabase
 								   @NonNull final String dbName,
 								   @NonNull final String userName)
 	{
-		return "jdbc:postgresql://"
+		final String jdbcUrl = "jdbc:postgresql://"
 				+ dbHost + ":" + dbPort + "/" + dbName
 				+ "?encoding=UNICODE&options=-c%20TimeZone%3DUTC";
+		return PostgreSQLTlsConfig.appendToUrl(
+				jdbcUrl,
+				System.getProperty(PostgreSQLTlsConfig.SSL_MODE_PROPERTY),
+				System.getProperty(PostgreSQLTlsConfig.SSL_ROOT_CERT_PROPERTY));
 	}    // getConnectionURL
 
 	/**

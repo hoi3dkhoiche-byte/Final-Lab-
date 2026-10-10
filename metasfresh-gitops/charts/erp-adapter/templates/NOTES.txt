@@ -1,0 +1,15 @@
+{{ if not .Values.validation.strict }}
+This was rendered with validation.strict=false for inspection only.
+Do not sync these generic values to the real CMC cluster.
+{{ end }}
+Expected prerequisites in namespace {{ include "erp.namespace" . }}:
+- Runtime Secret {{ .Values.runtime.propertiesSecret.name }} with key {{ .Values.runtime.propertiesSecret.key }}
+- RabbitMQ Secret {{ .Values.runtime.rabbitmqSecret.name }} with username/password keys
+- PostgreSQL CA Secret and a certificate SAN matching the configured pgHost
+- Harbor imagePullSecrets and trusted Harbor CA on every worker
+- Verified CSI StorageClass, DATA services and APP node placement
+- Origin TLS Secret {{ .Values.ingress.tlsSecretName }} and the selected Ingress controller
+
+Secret files are mounted with subPath; changing a Secret requires a pod restart.
+Bump runtime.propertiesSecret.revision after a Secret rotation.
+HPA remains disabled during bootstrap; enable only after smoke/load tests.

@@ -3,11 +3,16 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: metasfresh-ingress
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ include "erp.namespace" . }}
+  labels:
+    {{- include "erp.labels" . | nindent 4 }}
   annotations:
     argocd.argoproj.io/sync-wave: "40"
-    kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
   rules:
     - host: {{ .Values.ingress.host | quote }}
       http:
@@ -17,17 +22,21 @@ spec:
             backend:
               service:
                 name: metasfresh-api
-                port:
-                  number: 8080
+                port: {number: 8080}
+          - path: /stomp
+            pathType: Prefix
+            backend:
+              service:
+                name: metasfresh-api
+                port: {number: 8080}
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: metasfresh-ui
-                port:
-                  number: 80
+                port: {number: 80}
   tls:
     - hosts:
         - {{ .Values.ingress.host | quote }}
-      secretName: erp-origin-tls
+      secretName: {{ .Values.ingress.tlsSecretName }}
 {{- end }}

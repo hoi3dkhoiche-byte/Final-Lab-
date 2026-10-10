@@ -1,0 +1,24 @@
+{
+  "postgres_major": 18,
+  "database": "lab_seed_REPLACE_WITH_TEST_DATABASE",
+  "images": {
+    "core": "REPLACE_WITH_TESTED_HARBOR_REPOSITORY@sha256:DIGEST",
+    "api": "REPLACE_WITH_TESTED_HARBOR_REPOSITORY@sha256:DIGEST",
+    "ui": "REPLACE_WITH_TESTED_HARBOR_REPOSITORY@sha256:DIGEST"
+  },
+  "seed_sha256": "REPLACE_WITH_VERIFIED_CHECKSUM",
+  "migration_sha256": "REPLACE_WITH_VERIFIED_CHECKSUM",
+  "checks": {
+    "initialization": false,
+    "migrations": false,
+    "login": false,
+    "order": false,
+    "rabbitmq": false,
+    "search": false,
+    "websocket": false,
+    "database_restore": false,
+    "files_restore": false
+  },
+  "tested_at": "",
+  "report": ""
+}

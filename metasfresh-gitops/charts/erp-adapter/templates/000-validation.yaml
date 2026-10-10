@@ -1,0 +1,74 @@
+{{- if .Values.validation.strict -}}
+{{- if not .Values.databaseTLS.enabled -}}
+{{- fail "databaseTLS.enabled must be true for verified CMC PostgreSQL connections" -}}
+{{- end -}}
+{{- if ne .Values.databaseTLS.mode "verify-full" -}}
+{{- fail "strict CMC deployment requires databaseTLS.mode=verify-full" -}}
+{{- end -}}
+{{- $_ := required "databaseTLS.secretName is required" .Values.databaseTLS.secretName -}}
+{{- $_ := required "databaseTLS.key is required" .Values.databaseTLS.key -}}
+{{- if not (regexMatch "^/[A-Za-z0-9_./-]+$" .Values.databaseTLS.mountPath) -}}
+{{- fail "databaseTLS.mountPath must be an absolute JVM-safe Linux path" -}}
+{{- end -}}
+{{- $ns := include "erp.namespace" . -}}
+{{- if ne $ns .Release.Namespace -}}
+{{- fail "global.namespace must equal the Helm/Argo destination namespace" -}}
+{{- end -}}
+{{- $_ := required "externalDB.pgHost must be the PostgreSQL write primary" .Values.externalDB.pgHost -}}
+{{- $_ := required "externalDB.pgCIDR must be the write-primary IP /32 for NetworkPolicy" .Values.externalDB.pgCIDR -}}
+{{- $_ := required "externalDB.rabbitHost is required" .Values.externalDB.rabbitHost -}}
+{{- $_ := required "externalDB.rabbitCIDR is required" .Values.externalDB.rabbitCIDR -}}
+{{- $_ := required "externalDB.searchHost is required" .Values.externalDB.searchHost -}}
+{{- $_ := required "externalDB.searchCIDR is required" .Values.externalDB.searchCIDR -}}
+{{- $_ := required "runtime.propertiesSecret.name is required" .Values.runtime.propertiesSecret.name -}}
+{{- $_ := required "runtime.propertiesSecret.key is required" .Values.runtime.propertiesSecret.key -}}
+{{- $_ := required "runtime.rabbitmqSecret.name is required" .Values.runtime.rabbitmqSecret.name -}}
+{{- $_ := required "runtime.rabbitmqSecret.usernameKey is required" .Values.runtime.rabbitmqSecret.usernameKey -}}
+{{- $_ := required "runtime.rabbitmqSecret.passwordKey is required" .Values.runtime.rabbitmqSecret.passwordKey -}}
+{{- if not .Values.global.imagePullSecrets -}}
+{{- fail "private Harbor imagePullSecrets must be configured" -}}
+{{- end -}}
+{{- $registry := required "global.registry must identify the trusted Harbor registry" .Values.global.registry -}}
+{{- if not .Values.networkPolicy.enabled -}}
+{{- fail "networkPolicy.enabled must be true for a strict CMC deployment" -}}
+{{- end -}}
+{{- range $key := list "pgCIDR" "rabbitCIDR" "searchCIDR" -}}
+{{- if not (regexMatch "^([0-9]{1,3}[.]){3}[0-9]{1,3}/32$" (index $.Values.externalDB $key)) -}}
+{{- fail (printf "externalDB.%s must use one IPv4 /32" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
+{{- $host := required "ingress.host must be the real ERP domain" .Values.ingress.host -}}
+{{- if or (contains "yourdomain" $host) (contains "example." $host) (contains "YOUR_" $host) -}}
+{{- fail "ingress.host still contains a placeholder" -}}
+{{- end -}}
+{{- $_ := required "ingress.className is required" .Values.ingress.className -}}
+{{- $_ := required "ingress.tlsSecretName is required" .Values.ingress.tlsSecretName -}}
+{{- end -}}
+{{- range $component := list "core" "api" "ui" -}}
+{{- $cfg := index $.Values $component -}}
+{{- if not (regexMatch "^sha256:[0-9a-f]{64}$" $cfg.image.digest) -}}
+{{- fail (printf "%s.image.digest must be a verified sha256 image digest" $component) -}}
+{{- end -}}
+{{- if not (hasPrefix (printf "%s/" $registry) $cfg.image.repository) -}}
+{{- fail (printf "%s.image.repository must belong to global.registry" $component) -}}
+{{- end -}}
+{{- if not $cfg.nodeSelector -}}
+{{- fail (printf "%s.nodeSelector must place ERP on the APP node pool" $component) -}}
+{{- end -}}
+{{- if or (not $cfg.probes.startup) (not $cfg.probes.readiness) -}}
+{{- fail (printf "%s startup/readiness probes must be configured" $component) -}}
+{{- end -}}
+{{- if ne $component "ui" -}}
+{{- if ne (int $cfg.replicaCount) 1 -}}
+{{- fail (printf "%s currently supports one replica with a RWO business volume" $component) -}}
+{{- end -}}
+{{- if not $cfg.persistence.enabled -}}
+{{- fail (printf "%s persistence must be enabled for a strict deployment" $component) -}}
+{{- end -}}
+{{- if not $cfg.persistence.existingClaim -}}
+{{- $_ := required "persistence.storageClass must be confirmed on CMC (or use existingClaim)" $.Values.persistence.storageClass -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

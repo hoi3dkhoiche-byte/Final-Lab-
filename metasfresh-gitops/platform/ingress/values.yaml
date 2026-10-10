@@ -1,0 +1,57 @@
+fullnameOverride: haproxy-ingress
+controller:
+  kind: Deployment
+  replicaCount: 2
+  ingressClass: haproxy
+  ingressClassResource:
+    name: haproxy
+    default: false
+  defaultTLSSecret:
+    enabled: false
+  pprof:
+    enabled: false
+  nodeSelector:
+    cmc-cloud-k8s-nodegroups: nodegroup-gd6u
+  resources:
+    requests: {cpu: 200m, memory: 256Mi}
+    limits: {cpu: 1000m, memory: 512Mi}
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: kubernetes-ingress
+              app.kubernetes.io/instance: haproxy
+          topologyKey: kubernetes.io/hostname
+  PodDisruptionBudget:
+    enable: true
+    minAvailable: 1
+  config:
+    timeout-client: 60s
+    timeout-server: 60s
+    timeout-tunnel: 1h
+  service:
+    type: LoadBalancer
+    annotations:
+      loadbalancer.openstack.org/class: cmc-loadbalancer-private
+      loadbalancer.openstack.org/flavor-id: a80cfbb4-326b-4819-8e67-58eca8495490
+      loadbalancer.openstack.org/node-selector: cmc-cloud-k8s-nodegroups=nodegroup-gd6u
+      service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    externalTrafficPolicy: Local
+    healthCheckNodePort: 32042
+    ports:
+      https: 443
+    nodePorts:
+      https: 31443
+    loadBalancerSourceRanges:
+      - 10.60.20.100/32
+    enablePorts:
+      http: false
+      https: true
+      quic: false
+      stat: false
+      admin: false
+  serviceMonitor:
+    enabled: true
+    extraLabels:
+      release: monitoring

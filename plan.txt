@@ -1,0 +1,900 @@
+﻿Káº¿ hoáº¡ch triá»ƒn khai metasfresh ERP trÃªn CMC Cloud
+LAB cuá»‘i nhÃ³m HCM 1 vá»›i GitOps Argo CD vÃ  váº­n hÃ nh há»‡ thá»‘ng
+PhiÃªn báº£n 2.0  |  NgÃ y láº­p 05/10/2026  |  Giai Ä‘oáº¡n triá»ƒn khai 06 Ä‘áº¿n 19/10/2026
+NhÃ³m triá»ƒn khai ERP trÃªn CMC CaaS, dÃ¹ng Palo Alto HA báº£o vá»‡ cá»­a vÃ o vÃ  Ä‘áº·t dá»¯ liá»‡u trong máº¡ng riÃªng. CI kiá»ƒm tra vÃ  Ä‘Æ°a image vÃ o Harbor; GitOps lÆ°u tráº¡ng thÃ¡i mong muá»‘n; Argo CD Ä‘á»“ng bá»™ vÃ o Kubernetes. Káº¿t quáº£ cáº§n Ä‘áº¡t lÃ  táº¡o Ä‘Æ°á»£c Ä‘Æ¡n hÃ ng qua HTTPS, kiá»ƒm soÃ¡t truy cáº­p, phÃ¡t hiá»‡n sá»± cá»‘ vÃ  khÃ´i phá»¥c dá»¯ liá»‡u cÃ³ Ä‘o thá»i gian.
+Káº¿ hoáº¡ch phÃ¢n cÃ´ng hai thÃ nh viÃªn theo vai trÃ² A vÃ  B. A phá»¥ trÃ¡ch máº¡ng, firewall vÃ  ná»n táº£ng; B phá»¥ trÃ¡ch ERP, database, CI vÃ  lÆ°u trá»¯. ÄÃ¢y lÃ  phÃ¢n cÃ´ng Ä‘á» xuáº¥t; nhÃ³m Ä‘iá»n tÃªn tháº­t vÃ  Ä‘á»•i ngÆ°á»i kiá»ƒm tra chÃ©o trÆ°á»›c khi báº¯t Ä‘áº§u.
+1 Má»¥c tiÃªu pháº¡m vi vÃ  nguyÃªn táº¯c triá»ƒn khai
+Pháº¡m vi báº¯t buá»™c gá»“m VPC/subnet, Security Group, Palo Alto vÃ  Cloudflare, Kubernetes/node groups, PVC, Harbor, secrets, CI/GitOps/Argo CD, API vÃ  database, Prometheus/Grafana/Loki/Alloy/Alertmanager, Velero vÃ  restore.
+KhÃ´ng triá»ƒn khai AI Server, GPU, model hoáº·c endpoint AI. NFS chá»‰ lÃ  lá»±a chá»n lÆ°u trá»¯ RWX khi cÃ³ yÃªu cáº§u chia sáº» file Ä‘Ã£ xÃ¡c minh; khÃ´ng gáº¯n NFS vÃ o má»™t mÃ¡y AI vÃ  khÃ´ng cáº¥p tÃ i nguyÃªn nÃ y trong baseline.
+Baseline cÃ³ Ingress vÃ  UI hai replica, Core ERP vÃ  Web API má»—i thÃ nh pháº§n má»™t replica. PostgreSQL, RabbitMQ, Elasticsearch vÃ  monitoring má»™t instance. Chá»‰ tÄƒng API/Core sau thá»­ session, WebSocket, migration vÃ  background jobs; khÃ´ng gá»i toÃ n há»‡ thá»‘ng lÃ  HA Ä‘áº§y Ä‘á»§.
+CMC quáº£n lÃ½ control plane cá»§a CaaS. NhÃ³m khÃ´ng tá»± dá»±ng ba master VM náº¿u dÃ¹ng dá»‹ch vá»¥ nÃ y. Má»™t VPC dá»± Ã¡n lÃ  Ä‘á»§; tÃ¡ch subnet, SG vÃ  namespace theo vai trÃ². MÃ´ hÃ¬nh Ä‘a AZ chá»‰ Ã¡p dá»¥ng khi quota vÃ  kháº£ nÄƒng dá»‹ch vá»¥ Ä‘Ã£ xÃ¡c nháº­n.
+Chá»‰ Argo CD quáº£n lÃ½ manifest á»©ng dá»¥ng sau bootstrap. CI khÃ´ng giá»¯ kubeconfig production vÃ  khÃ´ng kubectl apply song song. Database migration lÃ  bÆ°á»›c phÃ¡t hÃ nh cÃ³ kiá»ƒm soÃ¡t; rollback image khÃ´ng tá»± Ä‘áº£o schema dá»¯ liá»‡u.
+Luá»“ng ngÆ°á»i dÃ¹ng: Cloudflare HTTPS â†’ EIP ERP â†’ Palo Alto HA â†’ Private ELB â†’ HAProxy Ingress â†’ UI vÃ  reverse proxy â†’ Web API â†’ Core. Web API/Core cÃ¹ng káº¿t ná»‘i PostgreSQL, RabbitMQ vÃ  Search qua máº¡ng riÃªng. API_URL vÃ  WS_URL dÃ¹ng cÃ¹ng domain ERP vá»›i Ä‘Æ°á»ng dáº«n Ä‘Ã£ kiá»ƒm tra trÃªn phiÃªn báº£n chá»n.
+Luá»“ng quáº£n trá»‹: VPN DNS only â†’ EIP VPN riÃªng â†’ GlobalProtect â†’ Bastion â†’ giao diá»‡n PA, endpoint quáº£n trá»‹ CaaS, Argo CD, Harbor vÃ  Grafana. Luá»“ng APP Ä‘áº¿n DATA dÃ¹ng VPC, SG vÃ  NetworkPolicy; firewall chá»‰ náº±m inline á»Ÿ cá»­a Internet trong baseline.
+2 Tiáº¿n Ä‘á»™ phÃ¢n cÃ´ng vÃ  cÃ¡c má»‘c hoÃ n thÃ nh
+Giai Ä‘oáº¡n
+A
+B
+Má»‘c hoÃ n thÃ nh
+06 Ä‘áº¿n 07/10
+VPC SG PA VIP VPN CaaS
+Chá»‘t bá»™ phÃ¡t hÃ nh vÃ  seed PG
+G1 Máº¡ng private vÃ  bá»™ ERP smoke test Ä‘áº¡t
+08 Ä‘áº¿n 09/10
+Node groups PVC Ingress TLS
+PG Rabbit Search API Core UI
+G2 Táº¡o Ä‘Æ¡n ERP qua domain Ä‘Æ°á»£c
+10 Ä‘áº¿n 11/10
+Argo CD RBAC secrets policy
+Harbor CI vÃ  PR GitOps
+G3 Deploy tá»« Git cÃ³ truy váº¿t digest
+12 Ä‘áº¿n 13/10
+Metrics logs alert máº¡ng
+Backup PG file vÃ  Velero
+G4 Alert vÃ  backup cÃ³ dá»¯ liá»‡u tháº­t
+14 Ä‘áº¿n 16/10
+HA deny node failure HPA
+Restore táº£i vÃ  rollback
+G5 CÃ¡c testcase cÃ³ Pass Fail vÃ  sá»‘ Ä‘o
+17 Ä‘áº¿n 18/10
+As built luáº­t vÃ  BOM
+Runbook báº±ng chá»©ng vÃ  slides
+Sá»­a lá»—i rehearsal cáº£ hai thÃ nh viÃªn
+19/10
+Demo máº¡ng vÃ  báº£o máº­t
+Demo ERP vÃ  restore
+BÃ n giao vÃ  báº£o vá»‡
+Má»—i ngÃ y dÃ nh 15 phÃºt Ä‘á»‘i chiáº¿u commit, thay Ä‘á»•i cloud, viá»‡c bá»‹ cháº·n vÃ  káº¿t quáº£ test. B thá»±c hiá»‡n kiá»ƒm tra chÃ©o cáº¥u hÃ¬nh máº¡ng cá»§a A; A kiá»ƒm tra chÃ©o pipeline/restore cá»§a B. Náº¿u G1 chÆ°a Ä‘áº¡t, Æ°u tiÃªn image/seed vÃ  káº¿t ná»‘i máº¡ng trÆ°á»›c cÃ¡c tÃ­nh nÄƒng má»Ÿ rá»™ng.
+CÃ¡c bÆ°á»›c cÃ³ thá»ƒ lÃ m song song: táº¡o máº¡ng vá»›i smoke test ERP; cÃ i Harbor vá»›i chuáº©n bá»‹ manifests; giÃ¡m sÃ¡t vá»›i viáº¿t backup. CÃ¡c bÆ°á»›c phá»¥ thuá»™c pháº£i Ä‘i tuáº§n tá»±: CRD/controller secrets trÆ°á»›c SealedSecret, migration trÆ°á»›c Core/API, TLS origin trÆ°á»›c Cloudflare proxy, backup thÃ nh cÃ´ng trÆ°á»›c thá»­ restore.
+3 VPC subnet vÃ  Ä‘á»‹nh tuyáº¿n
+Táº¡o dá»± Ã¡n vÃ  VPC cmc-erp-lab vá»›i dáº£i quy hoáº¡ch 10.60.0.0/16. ÄÃ¢y lÃ  Ä‘á»‹a chá»‰ káº¿ hoáº¡ch; gateway, ELB, Pod CIDR vÃ  Service CIDR ghi theo portal thá»±c táº¿. IP cá»§a áº£nh tham kháº£o chÆ°a dÃ¹ng lÃ m cáº¥u hÃ¬nh cloud. [R1]
+Subnet
+CIDR
+IP vÃ  vai trÃ²
+UNTRUST
+10.60.10.0/24
+PA port .11/.12; shared VIP ERP .100 vÃ  VPN .101; má»—i VIP cÃ³ má»™t EIP
+TRUST ELB
+10.60.20.0/24
+PA port .11/.12; shared VIP .100; ELB nháº­n IP do CMC cáº¥p
+APP
+10.60.30.0/24
+Worker APP vÃ  endpoint private cá»§a á»©ng dá»¥ng
+DATA
+10.60.40.0/24
+PG .10; Rabbit .20; Search .30; data disk riÃªng
+ADMIN
+10.60.50.0/24
+PA .11/.12 VIP .100; Bastion .20; Runner vÃ  Harbor .30
+MGMT
+10.60.60.0/24
+PA MGT .11/.12; Bastion NIC quáº£n trá»‹ .20
+MON vÃ  PLATFORM
+10.60.65.0/24 vÃ  10.60.66.0/24
+Node pool monitoring vÃ  platform náº¿u CaaS há»— trá»£ subnet riÃªng
+HA1 vÃ  HA2
+10.60.71.0/24 vÃ  10.60.72.0/24
+Hai PA .11/.12 trÃªn tá»«ng máº¡ng
+HA1B vÃ  HA2B
+10.60.73.0/24 vÃ  10.60.74.0/24
+Backup links khi Ä‘á»§ NIC vÃ  quota
+VPN client pool
+10.61.50.0/24
+Pool GlobalProtect; split tunnel chá»‰ ADMIN
+NET01 Kiá»ƒm tra quota vÃ  xung Ä‘á»™t Ä‘á»‹a chá»‰
+Phá»¥ trÃ¡ch A vá»›i B kiá»ƒm tra chÃ©o  |  Thá»i gian 06/10  |  Phá»¥ thuá»™c ThÃ´ng tin portal
+Ghi region, AZ, quota VM/vCPU/RAM/NIC/EIP/ELB vÃ  license PA. Äá»‘i chiáº¿u cÃ¡c CIDR vá»›i máº¡ng cÅ©, Pod/Service CIDR, VPN vÃ  máº¡ng cÃ´ng ty.
+XÃ¡c minh CaaS cÃ³ node pool/subnet riÃªng, Private ELB, CNI enforce policy vÃ  CSI. Náº¿u worker pháº£i cÃ¹ng subnet APP, giá»¯ phÃ¢n nhÃ³m báº±ng label/taint/policy vÃ  cáº­p nháº­t SG.
+Kiá»ƒm tra KhÃ´ng cÃ³ CIDR chá»“ng nhau; cÃ³ Ä‘á»§ hai EIP vÃ  VIP/AAP hoáº·c phÆ°Æ¡ng Ã¡n truy cáº­p qua VPN Ä‘Ã£ chá»‘t.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra docs/architecture/decisions.md vÃ  quota.csv cÃ³ ngÃ y xÃ¡c nháº­n.
+NET02 Táº¡o VPC subnet vÃ  Ä‘á»‹a chá»‰ cá»‘ Ä‘á»‹nh
+Phá»¥ trÃ¡ch A  |  Thá»i gian 06/10  |  Phá»¥ thuá»™c NET01
+Táº¡o VPC vÃ  cÃ¡c subnet báº¯t buá»™c; giá»¯ DATA/ADMIN/APP private. Reserve IP cho PA vÃ  VM dá»¯ liá»‡u; khÃ´ng gáº¯n EIP lÃªn worker, Bastion hoáº·c database.
+Gáº¯n Ä‘Ãºng subnet/SG cho tá»«ng NIC; ghi MAC Ä‘á»ƒ Ä‘á»‘i chiáº¿u e1/x cá»§a PA. Báº­t cÃ¡c tÃ¹y chá»n DHCP/DNS theo tÃ i nguyÃªn CMC há»— trá»£.
+Kiá»ƒm tra VM trong subnet nháº­n Ä‘Ãºng IP/gateway; báº£ng portal khá»›p IP plan.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra ip-plan.csv, network-resource-ids.md vÃ  áº£nh NIC/subnet.
+NET03 Äá»‹nh tuyáº¿n ERP vÃ  Ä‘Æ°á»ng vá» firewall
+Phá»¥ trÃ¡ch A  |  Thá»i gian 06 Ä‘áº¿n 07/10  |  Phá»¥ thuá»™c NET02 FW01
+Giá»¯ routing cloud cho APP Ä‘áº¿n DATA. PA DNAT ERP VIP:443 tá»›i Private ELB:443 vÃ  selective SNAT tá»›i TRUST VIP Ä‘á»ƒ ELB tráº£ vá» PA Active.
+Default route PA UNTRUST trá» gateway cloud thá»±c táº¿. KhÃ´ng sá»­a default route managed worker khi chÆ°a Ä‘Æ°á»£c CMC há»— trá»£; khÃ´ng váº½ PA inline cho APP/DATA náº¿u chÆ°a cáº¥u hÃ¬nh route hai chiá»u.
+Kiá»ƒm tra HTTPS Ä‘i vÃ  vá» cÃ¹ng firewall; session log/capture khÃ´ng cÃ³ asymmetric routing.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra route-table.csv, NAT rules vÃ  capture request/response.
+NET04 Táº¡o Private ELB vÃ  DNS ná»™i bá»™
+Phá»¥ trÃ¡ch A  |  Thá»i gian 07 Ä‘áº¿n 08/10  |  Phá»¥ thuá»™c K8S01 NET03
+Cáº¥u hÃ¬nh ELB TCP passthrough 443 Ä‘áº¿n Ingress; backend/health-check theo Service CaaS Ä‘Ã£ táº¡o. NodePort láº¥y tá»« káº¿t quáº£ thá»±c táº¿.
+Táº¡o tÃªn ná»™i bá»™ cho pg, rabbit, search vÃ  registry theo DNS Ä‘Æ°á»£c há»— trá»£. Náº¿u dÃ¹ng DNS cÃ´ng khai cho hostname ná»™i bá»™, tráº£ private IP vÃ  kiá»ƒm resolver trÃªn má»i worker.
+Kiá»ƒm tra Backend ELB Healthy; tá»« pod resolve Ä‘Æ°á»£c cÃ¡c tÃªn; TLS káº¿t thÃºc Ä‘Ãºng táº¡i Ingress.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra ELB backend list, DNS records vÃ  káº¿t quáº£ nslookup/curl.
+NET05 Cáº¥u hÃ¬nh Bastion vÃ  Ä‘Æ°á»ng VPN
+Phá»¥ trÃ¡ch A  |  Thá»i gian 07/10  |  Phá»¥ thuá»™c FW03
+Bastion chá»‰ nháº­n SSH key tá»« VPN pool; táº¡o user quáº£n trá»‹ riÃªng, táº¯t password SSH/root remote náº¿u mÃ´i trÆ°á»ng cho phÃ©p. CÃ i kubectl/Helm/CLI theo phiÃªn báº£n chá»‘t.
+Táº¡o route Bastion vá» VPN pool qua Admin VIP PA. Cho phÃ©p truy cáº­p CaaS API theo endpoint/port do provider cung cáº¥p vÃ  private UI quáº£n trá»‹.
+Kiá»ƒm tra VPN vÃ o Ä‘Æ°á»£c Bastion vÃ  kubectl get nodes; mÃ¡y ngoÃ i VPN bá»‹ cháº·n SSH/private UI.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Bastion runbook, route vÃ  kiá»ƒm tra truy cáº­p Ã¢m/dÆ°Æ¡ng.
+4 Security Group vÃ  NetworkPolicy
+SG báº£o vá»‡ NIC/VM á»Ÿ cloud; NetworkPolicy báº£o vá»‡ pod. Giá»¯ rule há»‡ thá»‘ng CaaS do provider yÃªu cáº§u, sau Ä‘Ã³ giá»›i háº¡n truy cáº­p á»©ng dá»¥ng. SG source cá»§a pod cÃ³ thá»ƒ lÃ  node sau SNAT; pháº£i Ä‘o IP nguá»“n rá»“i Ä‘iá»n rule, khÃ´ng cho phÃ©p toÃ n VPC Ä‘á»ƒ chá»¯a lá»—i. [R4]
+SG
+Nguá»“n cho phÃ©p
+Cá»•ng vÃ  Ä‘Ã­ch
+sg-pa-untrust
+Cloudflare IP ranges vÃ o ERP VIP; admin IP vÃ o VPN VIP khi cÃ³ thá»ƒ
+ERP TCP 443; VPN TCP 443 vÃ  UDP 4501 náº¿u dÃ¹ng GP IPsec
+sg-pa-trust
+Private ELB vÃ  luá»“ng Ä‘Ã£ NAT
+443 vÃ  traffic tráº£ vá» theo SG/stateful cá»§a CMC
+sg-pa-ha
+Hai peer PA cá»¥ thá»ƒ
+Chá»‰ protocol/port HA vÃ  backup links theo cáº¥u hÃ¬nh PAN OS
+sg-pa-mgmt
+Bastion MGMT IP /32 vÃ  peer heartbeat
+443/22 quáº£n trá»‹; heartbeat theo cáº¥u hÃ¬nh tháº­t
+sg-bastion
+VPN pool vÃ  luá»“ng quáº£n trá»‹ Ä‘Æ°á»£c cáº¥p
+SSH 22; khÃ´ng má»Ÿ 0.0.0.0/0
+sg-caas-app
+ELB health-check vÃ  backend; node/control plane provider
+Backend NodePort thá»±c táº¿ vÃ  protocol CaaS báº¯t buá»™c
+sg-pg
+Nguá»“n APP thá»±c táº¿; Bastion; exporter local
+5432 tá»« APP; 22 tá»« Bastion; 9187 tá»« MON
+sg-rabbit
+APP; Bastion; MON
+5672 APP; 15692 MON; 22/15672 chá»‰ quáº£n trá»‹
+sg-search
+API/Core; Bastion; MON
+9200; 9300 riÃªng Core náº¿u image cáº§n; 9114 MON; 22 Bastion
+sg-harbor-runner
+Worker CaaS vÃ  admin; nguá»“n CI Ä‘Æ°á»£c kiá»ƒm soÃ¡t
+443 pull/push/UI; 22 Bastion; webhook khÃ´ng public máº·c Ä‘á»‹nh
+SEC01 Táº¡o SG vÃ  kiá»ƒm tra thá»© tá»± gáº¯n rule
+Phá»¥ trÃ¡ch A  |  Thá»i gian 06 Ä‘áº¿n 08/10  |  Phá»¥ thuá»™c NET01 NET02
+Táº¡o SG theo báº£ng; inbound máº·c Ä‘á»‹nh khÃ´ng cho phÃ©p ngoÃ i allowlist. Egress cho DNS, NTP, S3, registry vÃ  dependency thá»±c táº¿; giá»¯ cÃ¡c rule quáº£n lÃ½ cluster cáº§n thiáº¿t.
+LÆ°u export rule kÃ¨m source/destination/port/lÃ½ do. KhÃ´ng thÃªm cá»•ng debug 8788/8789 hoáº·c cá»•ng DATA public.
+Kiá»ƒm tra Tá»« Internet khÃ´ng tá»›i DB/debug; nguá»“n Ä‘Æ°á»£c cáº¥p tá»›i Ä‘Ãºng cá»•ng; node váº«n Ready.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra sg-matrix.csv vÃ  káº¿t quáº£ kiá»ƒm thá»­ theo nguá»“n.
+SEC02 Táº¡o policy máº·c Ä‘á»‹nh cho namespace ERP
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 08 Ä‘áº¿n 09/10  |  Phá»¥ thuá»™c K8S02 APP03
+Apply default-deny ingress/egress; thÃªm allow DNS UDP/TCP 53 Ä‘áº¿n CoreDNS thá»±c táº¿, Ingress Ä‘áº¿n UI, UI Ä‘áº¿n API, API Ä‘áº¿n Core, API/Core Ä‘áº¿n DATA.
+DÃ¹ng selector theo namespace vÃ  app label; ipBlock /32 cho VM dá»¯ liá»‡u. Má»Ÿ riÃªng cá»•ng exporter cho monitoring; khÃ´ng máº·c Ä‘á»‹nh allow má»i pod trong cluster.
+Kiá»ƒm tra Má»™t pod test khÃ´ng Ä‘Æ°á»£c cáº¥p quyá»n tháº¥t báº¡i khi tá»›i PG/API; ERP váº«n táº¡o Ä‘Æ¡n Ä‘Æ°á»£c.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra network-policies/ vÃ  log deny/allow.
+SEC03 XÃ¡c minh IP nguá»“n trÆ°á»›c khi khÃ³a DATA
+Phá»¥ trÃ¡ch A  |  Thá»i gian 09/10  |  Phá»¥ thuá»™c SEC02 APP03
+Sinh káº¿t ná»‘i tá»« API/Core; Ä‘á»c log PG hoáº·c capture trÃªn DATA VM Ä‘á»ƒ biáº¿t node/Pod IP tháº­t. Äiá»n SG source Ä‘Ãºng dáº£i node/pod Ä‘Ã£ xÃ¡c minh.
+Kiá»ƒm tra CNI xá»­ lÃ½ Service NAT vÃ  ipBlock; náº¿u cáº§n sá»­a rule, ghi láº¡i lÃ½ do vÃ  thá»­ láº¡i cáº£ test Ã¢m láº«n test dÆ°Æ¡ng.
+Kiá»ƒm tra Rule khÃ´ng rá»™ng hÆ¡n cáº§n thiáº¿t; cáº£ SG vÃ  NetworkPolicy Ä‘á»u Ä‘Æ°á»£c chá»©ng minh hoáº¡t Ä‘á»™ng.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Packet source evidence vÃ  policy revision Ä‘Æ°á»£c review.
+SEC04 PhÃ¢n quyá»n Kubernetes vÃ  quáº£n trá»‹
+Phá»¥ trÃ¡ch A  |  Thá»i gian 09 Ä‘áº¿n 10/10  |  Phá»¥ thuá»™c K8S02 GIT02
+Táº¡o role operator/read-only theo namespace; tÃ¡ch quyá»n bootstrap platform vá»›i quyá»n deploy ERP. Argo AppProject ERP khÃ´ng Ä‘Æ°á»£c thao tÃ¡c namespace argocd hay táº¡o ClusterRoleBinding.
+Quáº£n trá»‹ viÃªn chá»‰ Ä‘á»c secrets khi cáº§n; cháº¡y kubectl auth can-i cho tÃ i khoáº£n A/B, Argo vÃ  ServiceAccount workload. Táº¯t automount token á»Ÿ UI/API/Core náº¿u khÃ´ng dÃ¹ng API K8s.
+Kiá»ƒm tra TÃ i khoáº£n read-only khÃ´ng sá»­a deployment/Ä‘á»c secrets; workload khÃ´ng cÃ³ quyá»n quáº£n trá»‹ cluster.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra rbac/ vÃ  auth-can-i.txt.
+5 Palo Alto HA Cloudflare vÃ  TLS
+FW01 Bootstrap hai Palo Alto vÃ  shared VIP
+Phá»¥ trÃ¡ch A  |  Thá»i gian 06 Ä‘áº¿n 07/10  |  Phá»¥ thuá»™c NET02
+DÃ¹ng image/license tÆ°Æ¡ng thÃ­ch, cÃ¹ng PAN OS; map NIC UNTRUST/TRUST/ADMIN/MGMT/HA theo MAC. Táº¡o hai shared VIP UNTRUST vÃ  TRUST/Admin VIP.
+ÄÄƒng kÃ½ AAP trÃªn Ä‘Ãºng port hai peer vÃ  gáº¯n EIP vÃ o shared VIP, khÃ´ng gáº¯n vÃ o fixed IP cá»§a má»™t PA. XÃ¡c minh cloud cho VIP ERP .100 vÃ  VPN .101 cÃ¹ng tá»“n táº¡i.
+Kiá»ƒm tra Active/Passive rÃµ; EIP tiáº¿p tá»¥c hoáº¡t Ä‘á»™ng khi Ä‘á»•i vai; khÃ´ng phÃ¡t sinh lá»—i anti spoofing.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra NIC mapping, AAP/VIP/EIP screenshots vÃ  config export Ä‘Ã£ bá» bÃ­ máº­t.
+FW02 Cáº¥u hÃ¬nh HA Ä‘á»“ng bá»™ vÃ  policy ERP
+Phá»¥ trÃ¡ch A  |  Thá»i gian 07/10  |  Phá»¥ thuá»™c FW01 NET03
+Cáº¥u hÃ¬nh HA1 control, HA2 session, heartbeat vÃ  link/path monitoring; thÃªm backup links náº¿u Ä‘á»§ NIC. Kiá»ƒm tra sync complete trÆ°á»›c khi cáº¥p traffic.
+Äáº·t security policy cho ERP 443 vÃ  NAT hai chiá»u theo NET03; log session start/end. Sau báº­t Cloudflare, khÃ³a nguá»“n ERP theo dáº£i IP Cloudflare cáº­p nháº­t.
+Kiá»ƒm tra Äá»•i Active khÃ´ng cáº§n Ä‘á»•i DNS/EIP; Ä‘o request lá»—i vÃ  thá»i gian phá»¥c há»“i, má»¥c tiÃªu LAB â‰¤30 giÃ¢y.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra HA state, policy hit count, session capture vÃ  báº£ng thá»i gian failover.
+FW03 GlobalProtect vÃ  truy cáº­p quáº£n trá»‹
+Phá»¥ trÃ¡ch A  |  Thá»i gian 07/10  |  Phá»¥ thuá»™c FW01
+Bind portal/gateway trÃªn VPN VIP vÃ  EIP riÃªng, certificate há»£p lá»‡ cho vpn.<domain>; pool 10.61.50.0/24, split tunnel chá»‰ ADMIN. DNS record VPN Ä‘á»ƒ DNS only.
+Chá»‰ cho VPN tá»›i Bastion; tá»« Bastion tá»›i management endpoints. Kiá»ƒm user/tunnel/route vÃ  chiá»u tráº£ vá»; khÃ´ng public WebGUI PA trÃªn UNTRUST.
+Kiá»ƒm tra VPN tunnel nháº­n Ä‘Ãºng pool, SSH Bastion Ä‘Æ°á»£c; domain ERP khÃ´ng bá»‹ dÃ¹ng lÃ m GP portal.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra VPN route, tunnel state vÃ  test truy cáº­p tá»« ngoÃ i VPN.
+CF01 Chuáº©n bá»‹ domain vÃ  chá»©ng chá»‰ origin
+Phá»¥ trÃ¡ch A  |  Thá»i gian 08 Ä‘áº¿n 09/10  |  Phá»¥ thuá»™c NET04 K8S03
+Chá»n domain ERP; cÃ i cert public báº±ng DNS 01 hoáº·c Cloudflare Origin CA vÃ o Ingress Secret. Cert pháº£i Ä‘Ãºng hostname, cÃ²n háº¡n vÃ  key khá»›p.
+Chá»‘t TLS káº¿t thÃºc á»Ÿ Ingress, ELB TCP passthrough. Origin CA chá»‰ Ä‘Æ°á»£c Cloudflare tin; domain DNS only nhÆ° VPN/registry dÃ¹ng CA mÃ  client tin, khÃ´ng tÃ¡i dÃ¹ng Origin CA.
+Kiá»ƒm tra Origin 443 tráº£ Ä‘Ãºng certificate/SNI; truy cáº­p ERP khÃ´ng redirect loop hoáº·c mixed content.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Certificate metadata, TLS test vÃ  expiry owner. [R5]
+CF02 Báº­t proxy WAF vÃ  khÃ³a origin
+Phá»¥ trÃ¡ch A  |  Thá»i gian 09 Ä‘áº¿n 10/10  |  Phá»¥ thuá»™c CF01 FW02 APP04
+DNS A ERP trá» EIP ERP, báº­t proxy; SSL Full strict, chuyá»ƒn HTTP ngÆ°á»i dÃ¹ng sang HTTPS. Bypass cache HTML/API/auth/WebSocket; chá»‰ cache static assets theo nhu cáº§u.
+Báº­t rule WAF/rate limit Ä‘Æ°á»£c gÃ³i hiá»‡n táº¡i há»— trá»£; thá»­ login/SockJS/upload trÆ°á»›c khi tÄƒng má»©c cháº·n. KhÃ³a origin ERP 443 theo danh sÃ¡ch IP Cloudflare chÃ­nh thá»©c vÃ  quy trÃ¬nh cáº­p nháº­t.
+Kiá»ƒm tra Domain ERP hoáº¡t Ä‘á»™ng, direct origin tá»« nguá»“n khÃ´ng Ä‘Æ°á»£c cáº¥p bá»‹ cháº·n; khÃ´ng cache dá»¯ liá»‡u má»™t ngÆ°á»i dÃ¹ng sang ngÆ°á»i khÃ¡c.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra DNS/TLS/WAF/cache rules vÃ  test 521/525/526 náº¿u gáº·p. [R5]
+CF03 Kiá»ƒm tra proxy header vÃ  WebSocket
+Phá»¥ trÃ¡ch B vá»›i A há»— trá»£  |  Thá»i gian 09 Ä‘áº¿n 10/10  |  Phá»¥ thuá»™c CF02 APP04
+Giá»¯ Host/X Forwarded Proto HTTPS vÃ  cáº¥u hÃ¬nh trusted proxy. SNAT PA che IP á»Ÿ lá»›p TCP; chá»‰ tin CF Connecting IP khi origin Ä‘Ã£ khÃ³a Cloudflare vÃ  backend chá»‰ nháº­n tá»« ELB/PA.
+Kiá»ƒm tra Ä‘Æ°á»ng /rest/api vÃ  /stomp theo image; frontend SockJS dÃ¹ng URL HTTPS, khÃ´ng tá»± Ä‘á»•i táº¥t cáº£ thÃ nh wss. Thá»­ reconnect, timeout vÃ  hai UI replica.
+Kiá»ƒm tra Login, táº¡o Ä‘Æ¡n vÃ  cáº­p nháº­t realtime cháº¡y qua Cloudflare; log khÃ´ng tin header do client tá»± giáº£ máº¡o.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Browser Network export Ä‘Ã£ bá» cookie/token vÃ  ingress access log.
+6 Kubernetes node groups namespace vÃ  tÃ i nguyÃªn
+Pool
+Sá»‘ node vÃ  sizing
+Label vÃ  workload
+Control plane
+Provider quáº£n lÃ½
+KhÃ´ng tá»± cáº¥p master trong BOM cá»§a nhÃ³m
+APP
+3 node Ã— 4 vCPU 8 GiB; CA min 3 max 4 sau test
+workload=app; ingress UI API Core
+PLATFORM
+1 node Ã— 4 vCPU 8 GiB
+workload=platform; Argo CD Sealed Secrets Velero controller
+MON
+1 node Ã— 4 vCPU 8 GiB
+workload=monitoring; Prometheus Grafana Loki Alertmanager
+PLATFORM vÃ  MON dÃ¹ng taint dedicated=platform:NoSchedule vÃ  dedicated=monitoring:NoSchedule cÃ¹ng toleration/nodeSelector trong chart. Alloy, node-exporter vÃ  Velero node-agent cáº§n cháº¡y trÃªn cÃ¡c node phÃ¹ há»£p, nÃªn pháº£i cÃ³ tolerations cho pool cÃ³ taint. Má»™t MON/PLATFORM node chÆ°a HA; giá»¯ kháº£ nÄƒng phá»¥c há»“i thay vÃ¬ ghi uptime tuyá»‡t Ä‘á»‘i.
+Namespace
+Workload
+NgÆ°á»i quáº£n lÃ½
+ingress-system
+HAProxy Ingress hai replica
+A quáº£n lÃ½ edge routes vÃ  TLS
+erp
+UI Core API configs secrets PVC
+B phÃ¡t hÃ nh A kiá»ƒm policy
+argocd
+Argo CD vÃ  repository credential
+A bootstrap quyá»n platform
+sealed-secrets
+Controller vÃ  sealing keys
+A quáº£n lÃ½ B táº¡o payload
+monitoring
+Metrics dashboard logs alert rules
+A/B cÃ¹ng váº­n hÃ nh
+velero
+Controller node-agent BSL schedules
+B restore A kiá»ƒm quyá»n
+lab-test
+Pod deny load vÃ  autoscale test
+Cáº£ nhÃ³m dÃ¹ng cÃ³ thá»i háº¡n
+K8S01 Táº¡o CaaS vÃ  worker pools
+Phá»¥ trÃ¡ch A  |  Thá»i gian 07 Ä‘áº¿n 08/10  |  Phá»¥ thuá»™c NET01 NET02 SEC01
+Táº¡o managed cluster phiÃªn báº£n CMC há»— trá»£; láº¥y kubeconfig trÃªn Bastion vÃ  giá»›i háº¡n file/user truy cáº­p. Táº¡o pool APP/PLATFORM/MON theo báº£ng.
+Kiá»ƒm node Ready, metrics-server, CoreDNS, CNI vÃ  CSI; ghi phiÃªn báº£n chÃ­nh xÃ¡c vÃ o versions.yaml trÆ°á»›c cÃ i chart.
+Kiá»ƒm tra Táº¥t cáº£ node Ready; cháº¡y pod test resolve DNS, mount PVC vÃ  gá»i private endpoint Ä‘Æ°á»£c.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Cluster/node pool IDs vÃ  kubectl get nodes -o wide.
+K8S02 Namespace label taint quota vÃ  policy
+Phá»¥ trÃ¡ch A  |  Thá»i gian 08/10  |  Phá»¥ thuá»™c K8S01
+Táº¡o namespaces, quota/LimitRange cho ERP vÃ  lab-test; label namespace chuáº©n cho selectors. Apply label/taint qua node pool/provider khi cÃ³ thá»ƒ Ä‘á»ƒ node má»›i káº¿ thá»«a.
+Cáº¥u hÃ¬nh nodeSelector/tolerations cho tá»«ng workload. Giá»¯ workload application khÃ´ng cháº¡y trÃªn MON/PLATFORM vÃ  khÃ´ng Ä‘áº©y DaemonSet cáº§n thiáº¿t vÃ o Pending.
+Kiá»ƒm tra Pod Ä‘Æ°á»£c schedule Ä‘Ãºng pool; node-agent/exporters/log agent phá»§ Ä‘á»§ worker cáº§n thiáº¿t.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra namespace/placement manifests vÃ  get pods -A -o wide.
+K8S03 Requests limits probes vÃ  chá»‘ng dá»“n pod
+Phá»¥ trÃ¡ch B  |  Thá»i gian 08 Ä‘áº¿n 09/10  |  Phá»¥ thuá»™c APP01 K8S02
+Khá»Ÿi táº¡o Core request 1 CPU/3 GiB limit 2/4; API 1/2 limit 2/3; UI vÃ  Ingress má»—i pod request 100 Ä‘áº¿n 200m/256 MiB, limit 500m/512 MiB. Tune JVM heap chá»«a overhead.
+StartupProbe Ä‘á»§ thá»i gian Java; readiness dá»±a health tháº­t cá»§a image; trÃ¡nh liveness kiá»ƒm sÃ¢u DB gÃ¢y restart hÃ ng loáº¡t. DÃ¹ng anti-affinity/topology spread cho UI/Ingress vÃ  PDB phÃ¹ há»£p.
+Kiá»ƒm tra KhÃ´ng OOM/CrashLoop; UI/Ingress hai pod á»Ÿ hai worker; endpoint chá»‰ nháº­n pod Ready.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra resources/probes manifests, restart count vÃ  rollout log.
+K8S04 HPA vÃ  cluster autoscaler cÃ³ kiá»ƒm soÃ¡t
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 14 Ä‘áº¿n 15/10  |  Phá»¥ thuá»™c MON01 APP05
+UI HPA min 2 max 4, CPU utilization má»¥c tiÃªu 60% khi Ä‘Ã£ cÃ³ CPU requests vÃ  metrics. Argo bá» quáº£n lÃ½ /spec/replicas cá»§a Deployment UI khi HPA sá»Ÿ há»¯u.
+Thá»­ CA APP pool 3 Ä‘áº¿n 4 báº±ng pod test cÃ³ request há»£p lá»‡ gÃ¢y Pending; thu há»“i sau thá»­. KhÃ´ng Ä‘áº·t HPA cho API/Core trÆ°á»›c kiá»ƒm session/jobs.
+Kiá»ƒm tra HPA Ä‘á»•i replica vÃ  Argo khÃ´ng kÃ©o vá» 2; CA tÄƒng node rá»“i scale down; ghi thá»i gian vÃ  chi phÃ­.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra HPA events, node timeline vÃ  script cleanup lab-test.
+7 PVC StorageClass vÃ  lÆ°u trá»¯ bá»n vá»¯ng
+DÃ¹ng CSI block StorageClass do CMC cáº¥p cho RWO; volumeBindingMode vÃ  topology theo driver thá»±c táº¿. RWO thÆ°á»ng chá»‰ cho nhiá»u pod cÃ¹ng má»™t node sá»­ dá»¥ng, khÃ´ng cÃ³ nghÄ©a Ä‘Ãºng má»™t pod. RWX cáº§n file storage/NFS vÃ  CSI Ä‘Ã£ thá»­; khÃ´ng xem viá»‡c táº¡o PVC lÃ  báº±ng chá»©ng volume sá»‘ng qua node/AZ failure. [R4]
+Dá»¯ liá»‡u
+KÃ­ch thÆ°á»›c Ä‘áº§u
+NÆ¡i lÆ°u vÃ  cÃ¡ch báº£o vá»‡
+Core files náº¿u cÃ³
+20 GiB RWO
+PVC ERP; chá»‰ mount Ä‘Æ°á»ng business files Ä‘Ã£ xÃ¡c minh; backup cÃ¹ng DB
+Prometheus
+30 GiB RWO
+PVC monitoring; retention 7 ngÃ y ban Ä‘áº§u vÃ  cáº£nh bÃ¡o disk
+Loki
+40 GiB RWO
+PVC single binary hoáº·c S3 bucket logs riÃªng náº¿u cáº¥u hÃ¬nh Ä‘Ã£ thá»­
+Grafana
+5 GiB RWO
+PVC; dashboards/datasources/rules provision báº±ng Git
+Alertmanager
+5 GiB RWO
+PVC silence/state; cáº¥u hÃ¬nh receiver qua Secret
+PostgreSQL
+100 GiB data disk
+VM disk ngoÃ i K8s; pg_dump/PITR náº¿u cÃ³; khÃ´ng gá»i lÃ  PVC
+Rabbit vÃ  Search
+30 vÃ  50 GiB data disk
+VM disk; Rabbit data/definitions, ES snapshot/reindex
+Harbor
+100 GiB data disk
+VM disk; backup registry metadata/config vÃ  image giá»¯ theo digest
+STO01 XÃ¡c minh CSI vÃ  vÃ²ng Ä‘á»i volume
+Phá»¥ trÃ¡ch A  |  Thá»i gian 08/10  |  Phá»¥ thuá»™c K8S01
+Láº¥y StorageClass tá»« kubectl get sc; táº¡o PVC thá»­, ghi file checksum, xÃ³a/recreate pod vÃ  thá»­ chuyá»ƒn worker. Kiá»ƒm attach/detach, AZ binding vÃ  UID/fsGroup.
+Chá»n reclaimPolicy Retain cho dá»¯ liá»‡u cáº§n giá»¯ náº¿u provider há»— trá»£. Khi xÃ³a PVC, Retain giá»¯ PV/disk Ä‘á»ƒ phá»¥c há»“i thá»§ cÃ´ng, khÃ´ng tá»± bind láº¡i PVC má»›i.
+Kiá»ƒm tra File cÃ²n nguyÃªn sau recreate; biáº¿t cÃ¡ch xá»­ lÃ½ Multi Attach/Pending vÃ  restore volume.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra CSI compatibility notes vÃ  volume lifecycle test.
+STO02 Thay hostPath vÃ  táº¡o PVC thá»±c táº¿
+Phá»¥ trÃ¡ch B  |  Thá»i gian 08 Ä‘áº¿n 09/10  |  Phá»¥ thuá»™c STO01 APP01
+Loáº¡i hostPath app logs/heapdump cá»§a chart cÅ©. Äáº©y log stdout qua Alloy; heapdump cÃ³ TTL hoáº·c PVC riÃªng náº¿u cáº§n. XÃ¡c Ä‘á»‹nh file nghiá»‡p vá»¥ trÆ°á»›c khi cáº¥p PVC Core.
+Táº¡o PVC monitoring theo báº£ng; volume permission Ä‘Ãºng user image. UI/API stateless khÃ´ng gáº¯n PVC chá»‰ Ä‘á»ƒ táº¡o log.
+Kiá»ƒm tra Restart/reschedule khÃ´ng máº¥t file nghiá»‡p vá»¥; khÃ´ng cÃ²n hostPath á»©ng dá»¥ng phá»¥ thuá»™c má»™t node.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra pvc-inventory.csv gá»“m owner mountPath backup method.
+STO03 Báº£o vá»‡ PVC trÆ°á»›c thao tÃ¡c GitOps
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 10/10  |  Phá»¥ thuá»™c GIT02 STO02
+Äáº·t Prune=false,Delete=false trÃªn PVC cáº§n giá»¯; tÃ¡ch manifests storage khá»i app lifecycle náº¿u cáº§n. KhÃ´ng dÃ¹ng Force/Replace vá»›i stateful resource Ä‘á»ƒ chá»¯a sync.
+Thá»­ xÃ³a PVC khá»i branch test vá»›i prune cÃ³ kiá»ƒm soÃ¡t rá»“i kiá»ƒm volume; restore theo procedure. Chá»n Retain á»Ÿ PV vÃ  backup lÃ  cÃ¡c lá»›p báº£o vá»‡ Ä‘á»™c láº­p.
+Kiá»ƒm tra Application khÃ´ng tá»± xÃ³a volume khi sá»­a repo hoáº·c xÃ³a app theo bÃ i test; cÃ³ backup trÆ°á»›c thao tÃ¡c thá»­.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Argo resource annotations vÃ  storage rollback test. [R3]
+8 Harbor registry vÃ  quáº£n lÃ½ image
+REG01 CÃ i Harbor private báº±ng TLS
+Phá»¥ trÃ¡ch B vá»›i A cáº¥p máº¡ng  |  Thá»i gian 08 Ä‘áº¿n 09/10  |  Phá»¥ thuá»™c NET05 SEC01
+Dá»±ng Harbor trÃªn ADMIN VM .30 hoáº·c tÃ¡i dÃ¹ng LAB trÆ°á»›c; domain registry ná»™i bá»™, data disk riÃªng, certificate Ä‘Ãºng SAN. Pin báº£n há»— trá»£, khÃ´ng dÃ¹ng tag latest.
+Worker vÃ  Runner pháº£i trust CA báº±ng cÃ¡ch provider há»— trá»£; kiá»ƒm cáº£ node má»›i cá»§a autoscaler. Æ¯u tiÃªn CA public/DNS 01 cho domain ná»™i bá»™ náº¿u CaaS khÃ´ng cho cÃ i CA riÃªng; khÃ´ng táº¯t verify TLS.
+Kiá»ƒm tra docker login vÃ  K8s pull qua 443 thÃ nh cÃ´ng tá»« má»i pool; registry khÃ´ng public.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra harbor.yml Ä‘Ã£ bá» secrets, cert metadata vÃ  pull test. [R6]
+REG02 Project robot account vÃ  retention
+Phá»¥ trÃ¡ch B  |  Thá»i gian 09/10  |  Phá»¥ thuá»™c REG01
+Táº¡o project erp vÃ  platform; CI robot cÃ³ pull/push theo project, K8s robot pull-only. Argo Ä‘á»c Git khÃ´ng cáº§n quyá»n push Harbor.
+Pin digest cho release; giá»¯ Ã­t nháº¥t image cá»§a báº£n Ä‘ang cháº¡y vÃ  hai báº£n rollback. Láº­p expiry/rotation token vÃ  cháº¡y garbage collection sau khi hiá»ƒu reference giá»¯ láº¡i.
+Kiá»ƒm tra Pull-only khÃ´ng push Ä‘Æ°á»£c; CI khÃ´ng vÃ o project ngoÃ i quyá»n; digest release cÃ²n tá»“n táº¡i.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Robot permission matrix, retention policy vÃ  digest ledger. [R6]
+REG03 Mirror bá»™ ERP vÃ  scan image
+Phá»¥ trÃ¡ch B  |  Thá»i gian 09 Ä‘áº¿n 10/10  |  Phá»¥ thuá»™c APP01 REG02
+Mirror image API/App/UI/DB seed cÃ¹ng release vÃ o Harbor sau khi kiá»ƒm license/access; ghi upstream digest vÃ  digest lÆ°u ná»™i bá»™. DÃ¹ng Trivy hoáº·c scanner Harbor.
+CVE Critical cháº·n promotion theo policy nhÃ³m; lá»—i scanner vÃ¬ database chÆ°a táº£i thÃ¬ job fail, khÃ´ng coi lÃ  sáº¡ch. Exception cÃ³ lÃ½ do/owner/háº¡n vÃ  giá»›i háº¡n dÃ¹ng LAB.
+Kiá»ƒm tra Bá»™ image kÃ©o Ä‘Æ°á»£c khÃ´ng phá»¥ thuá»™c registry upstream lÃºc demo; scan report cÃ³ thá»i Ä‘iá»ƒm vÃ  exceptions.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra image-lock.yaml, SBOM/scan artifacts vÃ  release note.
+9 Secrets cho DevOps GitOps vÃ  runtime
+Giá»¯ secret rÃµ trong kho máº­t kháº©u/secret store Ä‘Æ°á»£c nhÃ³m cáº¥p; Git chá»‰ lÆ°u SealedSecret mÃ£ hÃ³a. Base64 cá»§a Kubernetes Secret khÃ´ng pháº£i mÃ£ hÃ³a. Chá»n Sealed Secrets strict scope theo tÃªn vÃ  namespace; bootstrap controller trÆ°á»›c, export public certificate cho ngÆ°á»i táº¡o payload vÃ  sao lÆ°u private sealing keys ngoÃ i Git. [R2]
+TÃªn hoáº·c nhÃ³m
+NÆ¡i dÃ¹ng
+Quyá»n vÃ  cÃ¡ch lÆ°u
+erp-db-secret
+Core API migration
+DB runtime/DDL theo nhu cáº§u Ä‘Ã£ kiá»ƒm; SealedSecret namespace erp
+erp-properties
+Image Compose má»›i
+metasfresh.properties Ä‘Ã£ cáº¥u hÃ¬nh; mount read-only Ä‘Ãºng path má»—i image
+erp-rabbit-secret
+API Core
+User/vhost ERP riÃªng; khÃ´ng dÃ¹ng guest/default sample
+harbor-pull
+Má»—i namespace cáº§n kÃ©o image
+dockerconfigjson pull-only; seal riÃªng theo namespace
+CI_HARBOR vÃ  GITOPS_TOKEN
+CI environment
+Robot push project erp; token táº¡o PR repo GitOps; khÃ´ng cáº¥p kubeconfig
+argocd-repo
+Argo CD
+Read-only deploy key/PAT má»™t repo; bootstrap rá»“i seal táº¡i argocd
+erp-origin-tls vÃ  CF_DNS_TOKEN
+Ingress vÃ  DNS 01
+TLS secret; token DNS Edit chá»‰ zone cáº§n dÃ¹ng
+s3-velero vÃ  repository-password
+Velero
+Bucket/prefix backup; password backup repo chá»‘t trÆ°á»›c láº§n backup Ä‘áº§u
+s3-pg-backup vÃ  pgpass
+Backup PG
+TÃ¡ch credential DB/S3 khá»i deploy token; file quyá»n 0600
+alert-receiver vÃ  grafana-admin
+Monitoring
+Webhook/SMTP vÃ  admin ban Ä‘áº§u; Ä‘á»•i máº­t kháº©u; khÃ´ng Ä‘Æ°a URL token vÃ o log
+SCT01 Bootstrap controller vÃ  khÃ³a sealing
+Phá»¥ trÃ¡ch A  |  Thá»i gian 10/10  |  Phá»¥ thuá»™c K8S02
+Pin chart/controller/CLI tÆ°Æ¡ng thÃ­ch; cÃ i controller á»Ÿ sealed-secrets vá»›i placement PLATFORM. Chá» CRD vÃ  controller Ready rá»“i fetch public certificate.
+Backup toÃ n bá»™ sealing keys hiá»‡n hÃ nh vÃ o nÆ¡i mÃ£ hÃ³a ngoÃ i Git, giá»›i háº¡n ngÆ°á»i Ä‘á»c; cáº­p nháº­t backup khi controller sinh key má»›i. Public cert dÃ¹ng Ä‘á»ƒ seal khÃ´ng pháº£i credential giáº£i mÃ£.
+Kiá»ƒm tra Seal/unseal thá»­ Ä‘Æ°á»£c; restore keys trong mÃ´i trÆ°á»ng riÃªng giáº£i mÃ£ Ä‘Æ°á»£c cÃ¹ng name/namespace.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Controller version, public-cert fingerprint vÃ  encrypted key backup receipt.
+SCT02 Táº¡o secrets runtime vÃ  imagePullSecrets
+Phá»¥ trÃ¡ch B  |  Thá»i gian 10/10  |  Phá»¥ thuá»™c SCT01 REG02 APP01
+Táº¡o tá»«ng Secret báº±ng file/input an toÃ n, seal strict Ä‘Ãºng namespace/name rá»“i xÃ³a plaintext táº¡m. Vá»›i properties image má»›i, seal cáº£ file cáº¥u hÃ¬nh chá»©a Connection/credential.
+Apply qua GitOps; template dÃ¹ng secretKeyRef/volume Secret. KhÃ´ng echo secret ra terminal, khÃ´ng dÃ¹ng Docker build ARG hoáº·c commit .env/local Maven settings.
+Kiá»ƒm tra Pod káº¿t ná»‘i dependency Ä‘Æ°á»£c; repository scan khÃ´ng tháº¥y plaintext/token; pull secret Ä‘Ãºng namespace.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra sealed-secrets/ vÃ  kiá»ƒm tra key tá»“n táº¡i khÃ´ng in giÃ¡ trá»‹.
+SCT03 TÃ¡ch CI credential vÃ  repository credential
+Phá»¥ trÃ¡ch B  |  Thá»i gian 10 Ä‘áº¿n 11/10  |  Phá»¥ thuá»™c SCT01 REG02
+CI environment giá»¯ Harbor push, token PR GitOps vÃ  PAT read packages náº¿u build Java cáº§n GitHub Maven dependency. DÃ¹ng BuildKit secret mount hoáº·c settings táº¡m khÃ´ng vÃ o layer.
+Argo repo credential read-only; Terraform/cloud credential náº¿u cÃ³ bootstrap á»Ÿ kho riÃªng. Runner chá»‰ cháº¡y repo/branch tin cáº­y, khÃ´ng cháº¡y PR fork chÆ°a review trÃªn runner cÃ³ credential.
+Kiá»ƒm tra CI push/PR Ä‘Æ°á»£c nhÆ°ng khÃ´ng truy cáº­p cluster; kiá»ƒm token scope/expiry; khÃ´ng lá»™ secret trong layer/artifact.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Credential owners vÃ  permission matrix, CI masking test.
+SCT04 Rotate vÃ  kiá»ƒm thá»­ khÃ´i phá»¥c secrets
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 13 Ä‘áº¿n 15/10  |  Phá»¥ thuá»™c SCT02 BAK02
+Rotate thá»­ Harbor pull hoáº·c Rabbit password cÃ³ káº¿ hoáº¡ch chuyá»ƒn tiáº¿p; seal payload má»›i, sync, restart workload khi env khÃ´ng tá»± cáº­p nháº­t.
+Äá»•i password nguá»“n má»›i lÃ  credential rotation; sealing key renewal khÃ´ng tá»± Ä‘á»•i máº­t kháº©u DB. Restore vÃ o namespace khÃ¡c pháº£i seal láº¡i strict payload hoáº·c restore cÃ¹ng tÃªn namespace trÃªn cluster cÃ´ láº­p.
+Kiá»ƒm tra Credential cÅ© bá»‹ thu há»“i sau chuyá»ƒn Ä‘á»•i; restore khÃ´ng phá»¥ thuá»™c má»™t private key chÆ°a backup.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Rotation runbook, access test vÃ  secrets restore evidence.
+10 DevOps GitOps vÃ  Argo CD
+TÃ¡ch repo metasfresh-app cá»§a nhÃ³m cho source/build vá»›i repo metasfresh-gitops cho cáº¥u hÃ¬nh triá»ƒn khai. Repo GitOps chá»©a charts/erp-adapter, environments/lab, platform, policies, sealed-secrets vÃ  docs/evidence. Tag/digest trong Git lÃ  phiÃªn báº£n triá»ƒn khai; tráº¡ng thÃ¡i cloud thá»±c táº¿ ghi á»Ÿ as-built, khÃ´ng Ä‘Æ°a license/kubeconfig vÃ o repo.
+GIT01 Táº¡o repository vÃ  quy táº¯c review
+Phá»¥ trÃ¡ch B  |  Thá»i gian 09 Ä‘áº¿n 10/10  |  Phá»¥ thuá»™c APP01
+Táº¡o hai repo theo quyá»n nhÃ³m; branch protection yÃªu cáº§u Ã­t nháº¥t má»™t ngÆ°á»i review, check lint/schema/secret scan vÃ  cáº¥m force push nhÃ¡nh triá»ƒn khai.
+Táº¡o image-lock/versions file ghi digest, image family, PG major, seed/migration checksum, chart versions, cá»•ng Search vÃ  lá»‹ch sá»­ release.
+Kiá»ƒm tra PR cÃ³ check vÃ  reviewer; cÃ³ thá»ƒ truy ngÆ°á»£c tá»« pod digest vá» commit/image source.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Repository layout, branch rules vÃ  versions.yaml.
+GIT02 Bootstrap Argo CD vÃ  AppProject
+Phá»¥ trÃ¡ch A  |  Thá»i gian 10/10  |  Phá»¥ thuá»™c K8S02 NET05
+CÃ i Argo CD private táº¡i argocd/PLATFORM; UI chá»‰ VPN/Bastion, Ä‘á»•i admin secret hoáº·c dÃ¹ng SSO Ä‘Æ°á»£c cáº¥p. TÃ¡ch project platform vÃ  erp.
+ERP project giá»›i háº¡n repo nguá»“n, namespace erp/ingress cáº§n thiáº¿t vÃ  resource kinds. Platform quáº£n CRD/operator vá»›i quyá»n cao hÆ¡n; khÃ´ng dÃ¹ng default project allow má»i thá»©.
+Kiá»ƒm tra Argo truy cáº­p Git/cluster Ä‘Æ°á»£c; ERP app bá»‹ tá»« chá»‘i khi thá»­ namespace argocd hoáº·c ClusterRoleBinding.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Argo values, AppProject/RBAC vÃ  negative permission test. [R3]
+GIT03 Adapt chart vÃ  khai bÃ¡o Applications
+Phá»¥ trÃ¡ch B  |  Thá»i gian 10 Ä‘áº¿n 11/10  |  Phá»¥ thuá»™c APP01 SCT02 STO03 GIT02
+DÃ¹ng Helm adapter cá»§a nhÃ³m: bá» DB in-cluster khi dÃ¹ng VM, thay endpoint service cho DATA, bá» debug/hostPath, thÃªm resources/probes/node placement/pull secrets.
+Bootstrap platform CRD/controller vÃ  chá» Healthy trÆ°á»›c ERP. Trong cÃ¹ng ERP Application, sync waves 0 configs/policy/service, 5 secrets, 10 PVC, 20 Core, 30 API, 40 UI/Ingress; dependency VM pháº£i kiá»ƒm riÃªng.
+Kiá»ƒm tra helm template vÃ  server-side dry run Ä‘áº¡t; khÃ´ng táº¡o thÃªm DB/PVC trÃ¹ng VM; Argo app Healthy.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra charts/erp-adapter, values-lab vÃ  rendered-manifest artifact.
+GIT04 CI build scan push vÃ  táº¡o PR GitOps
+Phá»¥ trÃ¡ch B  |  Thá»i gian 11/10  |  Phá»¥ thuá»™c REG03 GIT01 SCT03
+Pipeline trÃªn Runner: checkout commit â†’ test/lint â†’ build image báº±ng version Ä‘Ã£ chá»‘t â†’ scan â†’ push Harbor â†’ Ä‘á»c digest â†’ táº¡o PR cáº­p nháº­t GitOps. Bootstrap cÃ³ thá»ƒ mirror image Ä‘á»“ng bá»™ trÆ°á»›c khi build full monorepo.
+Chá»‰ PR Ä‘Æ°á»£c duyá»‡t má»›i Ä‘á»•i deployment; CI khÃ´ng kubectl apply vÃ  khÃ´ng tá»± bypass reviewer. Giá»¯ build logs/artifact Ä‘Ã£ loáº¡i secret, pin dependencies cáº§n thiáº¿t.
+Kiá»ƒm tra Má»™t thay Ä‘á»•i source/image táº¡o PR digest; merge xong Argo sync; image lá»—i check khÃ´ng Ä‘Æ°á»£c promotion.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Workflow YAML, pipeline run, PR vÃ  pod imageID Ä‘á»‘i chiáº¿u.
+GIT05 Äáº·t chÃ­nh sÃ¡ch sync vÃ  báº£o vá»‡ tÃ i nguyÃªn
+Phá»¥ trÃ¡ch A  |  Thá»i gian 11/10  |  Phá»¥ thuá»™c GIT03
+ERP ban Ä‘áº§u manual sync Ä‘áº¿n G2/G3; sau smoke test báº­t selfHeal, prune=false vÃ  allowEmpty=false. Náº¿u báº­t prune cho stateless sau nÃ y, PVC/namespace cáº§n giá»¯ váº«n cÃ³ Prune=false/Delete=false.
+Khi UI dÃ¹ng HPA, ignore /spec/replicas Ä‘Ãºng Deployment vÃ  RespectIgnoreDifferences=true. KhÃ´ng dÃ¹ng app-of-apps wave lÃ m báº±ng chá»©ng children Ä‘Ã£ Ready náº¿u chÆ°a kiá»ƒm health/order.
+Kiá»ƒm tra Patch thá»­ má»™t config an toÃ n bá»‹ selfHeal; HPA khÃ´ng bá»‹ Argo ghi Ä‘Ã¨; PVC khÃ´ng bá»‹ xÃ³a theo test.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Application manifests, drift test vÃ  resource protection evidence. [R3]
+GIT06 PhÃ¡t hÃ nh migration vÃ  rollback
+Phá»¥ trÃ¡ch B vá»›i A review  |  Thá»i gian 11 Ä‘áº¿n 16/10  |  Phá»¥ thuá»™c GIT04 APP02 BAK02
+Migration cÃ³ backup trÆ°á»›c cháº¡y, version guard/lock vÃ  chá»‰ má»™t executor. DÃ¹ng Job/Application riÃªng sync cÃ³ chá»§ Ä‘Ã­ch hoáº·c cÆ¡ cháº¿ migration má»™t instance Ä‘Æ°á»£c image há»— trá»£.
+KhÃ´ng dÃ¹ng PreSync migration cháº¡y láº¡i trÃªn má»i selfHeal. Rollback stateless báº±ng revert Git digest; rollback schema cáº§n script Ä‘Ã£ thá»­ hoáº·c restore DB/file tá»« backup. Táº¡m dá»«ng auto sync trÆ°á»›c thao tÃ¡c DR.
+Kiá»ƒm tra Reconcile láº¡i khÃ´ng cháº¡y migration ngoÃ i Ã½ muá»‘n; rollback cÃ³ kiá»ƒm tra Ä‘Æ¡n hÃ ng vÃ  version DB.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra release-runbook.md, migration log vÃ  rollback testcase. [R3]
+11 API Core vÃ  káº¿t ná»‘i database
+Snapshot ZIP cÃ³ version.info 5.175, nhÆ°ng khÃ´ng chá»©a Ä‘á»§ thÃ´ng tin Ä‘á»ƒ tá»± suy ra tag/digest phÃ¡t hÃ nh Ä‘ang cháº¡y. Docker Compose má»›i dÃ¹ng image metas-api/metas-app/metas-frontend vÃ  mount metasfresh.properties; chart datacenter cÅ© dÃ¹ng DB_HOST/DB_USER/DB_PASSWORD. Chá»‘t má»™t bá»™ Ä‘á»“ng bá»™ rá»“i adapt theo entrypoint/config tháº­t, khÃ´ng trá»™n hai há» cáº¥u hÃ¬nh. [R1]
+ThÃ nh pháº§n
+Cáº¥u hÃ¬nh theo image chá»n
+Endpoint private
+Database
+PG major/locale/seed/migration Ä‘á»“ng bá»™; account owner/runtime theo yÃªu cáº§u ERP
+pg.<internal> 5432
+Core image Compose
+Secret properties mount /opt/metasfresh/metasfresh.properties; PropertyFile; SPRING_RABBITMQ vars; ES config
+rabbit 5672; search 9200 vÃ  9300 náº¿u dÃ¹ng transport
+API image Compose
+Secret properties mount /opt/metasfresh-webui-api/metasfresh.properties; Rabbit vÃ  ES vars Ä‘Ãºng image
+Core 8282; PG 5432; Search 9200
+Image tá»« Helm cÅ©
+DB_HOST/PORT/NAME/USER/PASSWORD; APP_HOST; ES_HOST/PORT; RABBITMQ_HOST/USER/PASSWORD
+Chá»‰ dÃ¹ng khi entrypoint cá»§a image Ä‘Ã³ Ä‘Ã£ há»— trá»£ biáº¿n nÃ y
+Frontend
+config.js ConfigMap: API_URL HTTPS /rest/api; WS_URL HTTPS /stomp cho SockJS; proxy cÃ¹ng origin
+Ingress route API tá»›i Web API 8080; UI tá»›i 80
+APP01 Chá»‘t bá»™ phÃ¡t hÃ nh vÃ  smoke test
+Phá»¥ trÃ¡ch B  |  Thá»i gian 06 Ä‘áº¿n 07/10  |  Phá»¥ thuá»™c Quyá»n image registry
+Kiá»ƒm snapshot/source commit, image registry tags, version.info, PG engine, seed vÃ  migration. Cháº¡y bá»™ ERP trong VM/mÃ´i trÆ°á»ng test cÃ´ láº­p, Ä‘á»•i toÃ n bá»™ sample password vÃ  loáº¡i JDWP debug flags.
+Ghi cÃ¡ch properties Connection Ä‘Æ°á»£c táº¡o/Ä‘á»c cá»§a image vÃ  cÃ¡c endpoint /health, /rest/api, /stomp. Thá»­ PG/ES/Rabbit dependency trÆ°á»›c chuyá»ƒn sang K8s; 9300 chá»‰ má»Ÿ cho Core khi bá»™ chá»n cáº§n.
+Kiá»ƒm tra ÄÄƒng nháº­p vÃ  táº¡o má»™t Ä‘Æ¡n test Ä‘Æ°á»£c; cÃ³ image-lock Ä‘áº§y Ä‘á»§ vÃ  template cáº¥u hÃ¬nh khÃ´ng chá»©a secret tháº­t.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra smoke report, image/seed checksums vÃ  environment contract.
+APP02 Dá»±ng PostgreSQL seed vÃ  migration
+Phá»¥ trÃ¡ch B  |  Thá»i gian 07 Ä‘áº¿n 08/10  |  Phá»¥ thuá»™c APP01 NET02 SEC01
+Táº¡o PG VM/private disk; chá»n PG major Ä‘Ãºng bá»™ release, locale/encoding/extensions theo seed. Restore seed vÃ  cháº¡y migration tá»«ng version; Ä‘á»•i password máº«u.
+pg_hba chá»‰ cáº¥p user/database vÃ  nguá»“n APP thá»±c táº¿; SCRAM/TLS verify-full khi driver/image há»— trá»£, thá»­ CA/hostname. TÃ¡ch role migration/runtime/exporter theo quyá»n ERP thá»±c sá»± cáº§n; khÃ´ng giáº£ Ä‘á»‹nh runtime chá»‰ SELECT.
+Kiá»ƒm tra Seed schema/role/sequence Ä‘Ãºng; API login vÃ  write Ä‘Æ°á»£c; nguá»“n láº¡ bá»‹ tá»« chá»‘i.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra PG version/config Ä‘Ã£ bá» secret, seed/migration log vÃ  grants matrix.
+APP03 Rabbit Search vÃ  service endpoints
+Phá»¥ trÃ¡ch B  |  Thá»i gian 08/10  |  Phá»¥ thuá»™c APP01 SEC01
+Rabbit vhost/user ERP riÃªng, data disk /var/lib/rabbitmq vÃ  definitions; Search data disk/version/heap theo bá»™ chá»n. Pin phiÃªn báº£n tÆ°Æ¡ng thÃ­ch, ghi cÃ¡c CVE/giá»›i háº¡n cá»§a phá»¥ thuá»™c cÅ©.
+Táº¡o Service khÃ´ng selector + EndpointSlice cho VM náº¿u chart cáº§n tÃªn service, hoáº·c sá»­a init/config dÃ¹ng FQDN private. Kiá»ƒm cá»•ng Rabbit 5672, ES HTTP 9200 vÃ  Core transport 9300 khi cÃ³.
+Kiá»ƒm tra Core/API resolve vÃ  káº¿t ná»‘i Ä‘Æ°á»£c; services khÃ´ng public; chá»‰ ngÆ°á»i quáº£n trá»‹ tá»›i UI Rabbit.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Dependency readiness vÃ  DNS/EndpointSlice manifests.
+APP04 Deploy Core API UI vÃ  reverse proxy
+Phá»¥ trÃ¡ch B  |  Thá»i gian 08 Ä‘áº¿n 09/10  |  Phá»¥ thuá»™c APP02 APP03 K8S03 vÃ  Secret bootstrap
+TrÆ°á»›c secrets controller/GitOps hoÃ n táº¥t, bootstrap Secret cá»¥c bá»™ cÃ³ quyá»n háº¡n; sau SCT02/GIT03 chuyá»ƒn quyá»n quáº£n lÃ½ sang GitOps. Khá»Ÿi Ä‘á»™ng Core má»™t replica â†’ API má»™t â†’ UI hai.
+Mount Secret properties read-only vá»›i path Ä‘Ãºng tá»«ng image; Frontend dÃ¹ng URL domain thay localhost. Ingress route /rest/api vÃ  /stomp tá»›i API, Ä‘Æ°á»ng cÃ²n láº¡i tá»›i UI; giá»¯ prefix trá»« khi API báº£n chá»n yÃªu cáº§u rewrite.
+Kiá»ƒm tra Health/probes pass, UI khÃ´ng gá»i localhost cá»§a trÃ¬nh duyá»‡t; kiá»ƒm domain qua DNS ná»™i bá»™ trÆ°á»›c, rá»“i qua Cloudflare sau CF02.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra App values, sanitized manifests vÃ  browser request trace.
+APP05 Kiá»ƒm tra káº¿t ná»‘i DB vÃ  nghiá»‡p vá»¥ xuyÃªn suá»‘t
+Phá»¥ trÃ¡ch B vá»›i A kiá»ƒm tra  |  Thá»i gian 09 Ä‘áº¿n 10/10  |  Phá»¥ thuá»™c APP04 NET04
+Tá»« pod API/Core kiá»ƒm DNS, TCP 5432, TLS vÃ  query cÃ³ xÃ¡c thá»±c báº±ng account riÃªng; khÃ´ng dá»«ng á»Ÿ nc bÃ¡o open. Táº¡o khÃ¡ch hÃ ng/sáº£n pháº©m/Ä‘Æ¡n, tÃ¬m láº¡i Ä‘Æ¡n vÃ  kiá»ƒm log lá»—i DB.
+Giá»›i háº¡n connection pool ban Ä‘áº§u khoáº£ng 20 má»—i API/Core, so tá»•ng vá»›i max_connections vÃ  dá»± phÃ²ng quáº£n trá»‹/migration. Äo rá»“i Ä‘iá»u chá»‰nh; khÃ´ng nhÃ¢n replica mÃ  quÃªn pool.
+Kiá»ƒm tra Nghiá»‡p vá»¥ ghi/Ä‘á»c Ä‘Ãºng, DB khÃ´ng Ä‘áº§y connection; API khÃ´ng dÃ¹ng superuser khÃ´ng cáº§n thiáº¿t.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra MÃ£ Ä‘Æ¡n, SQL kiá»ƒm tra chá»‰ Ä‘á»c, pool metrics vÃ  log Ä‘Ã£ che dá»¯ liá»‡u nháº¡y cáº£m.
+12 Prometheus Grafana Loki Alloy vÃ  Alerting
+Metrics dÃ¹ng Prometheus; Grafana xem dashboard; Alloy thu container log vÃ o Loki; Prometheus rules gá»­i Alertmanager. Promtail Ä‘Ã£ EOL nÃªn káº¿ hoáº¡ch dÃ¹ng Alloy. Cáº¥u hÃ¬nh dashboard/rules/datasources lÆ°u Git; token receiver lÆ°u Secret. Vá»›i LAB nhá», Prometheus/Grafana/Loki single instance á»Ÿ MON, cÃ³ PVC vÃ  retention Ä‘á»ƒ trÃ¡nh Ä‘áº§y disk. [R7]
+MON01 CÃ i metrics vÃ  exporters
+Phá»¥ trÃ¡ch A  |  Thá»i gian 12/10  |  Phá»¥ thuá»™c K8S02 STO02 GIT03
+Pin kube-prometheus-stack vÃ  cÃ i qua project platform; node-exporter/kube-state-metrics phá»§ cluster. Deploy postgres_exporter read-only, Rabbit prometheus plugin 15692, ES exporter 9114 trÃªn private máº¡ng.
+ServiceMonitor/PodMonitor/Probe labels pháº£i khá»›p selector Prometheus. VM exporter dÃ¹ng endpoint/service rÃµ rÃ ng; kiá»ƒm target UP, khÃ´ng chá»‰ tháº¥y pod Running.
+Kiá»ƒm tra CÃ¡c target báº¯t buá»™c UP; cÃ³ CPU/RAM/restart, PG pool/disk, queue depth vÃ  Search health.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Monitor manifests, target list vÃ  dashboard baseline.
+MON02 CÃ i Loki vÃ  Alloy thu log
+Phá»¥ trÃ¡ch B  |  Thá»i gian 12/10  |  Phá»¥ thuá»™c MON01
+CÃ i Loki single binary/PVC hoáº·c S3 logs riÃªng Ä‘Ã£ thá»­; Alloy DaemonSet láº¥y stdout pod. Toleration Ä‘á»§ APP/PLATFORM/MON vÃ  RBAC read logs/metadata Ä‘Ãºng.
+Label namespace/app/component; trÃ¡nh user ID/order ID lÃ m label cardinality cao. Loáº¡i cookie/password/Authorization; khÃ´ng public Loki endpoint khÃ´ng cÃ³ báº£o vá»‡.
+Kiá»ƒm tra CÃ³ log UI/Ingress/API/Core; truy váº¥n theo request ID náº¿u app cÃ³ há»— trá»£; khÃ´ng lá»™ credential.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Alloy pipeline, Loki query vÃ  retention config.
+MON03 Provision Grafana vÃ  kiá»ƒm tra HTTPS
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 12 Ä‘áº¿n 13/10  |  Phá»¥ thuá»™c MON01 MON02 CF02
+Grafana private qua VPN, Ä‘á»•i admin hoáº·c dÃ¹ng SSO Ä‘Æ°á»£c cáº¥p. Provision Prometheus/Loki datasource cÃ¹ng dashboard báº±ng Git, khÃ´ng dÃ¹ng account admin chia sáº» Ä‘á»ƒ váº­n hÃ nh.
+Blackbox/probe theo HTTPS domain ERP; synthetic business test dÃ¹ng account demo háº¡n quyá»n vÃ  payload API Ä‘Ã£ ghi nháº­n. PhÃ¢n biá»‡t probe login trang web vá»›i test ghi Ä‘Æ¡n hÃ ng.
+Kiá»ƒm tra Dashboard cÃ³ dá»¯ liá»‡u, tráº¡ng thÃ¡i HTTPS vÃ  Ä‘á»™ trá»…; sau recreate Grafana dashboards váº«n tá»“n táº¡i.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Grafana provisioning vÃ  uptime/P95 chart.
+MON04 Alert rules receiver vÃ  runbook
+Phá»¥ trÃ¡ch A vá»›i B kiá»ƒm thá»­  |  Thá»i gian 13/10  |  Phá»¥ thuá»™c MON03 BAK02
+Táº¡o rule theo báº£ng; Alertmanager route critical/warning, group/inhibit phÃ¹ há»£p, receiver webhook/SMTP do nhÃ³m chá»n. Credential receiver tham chiáº¿u Secret; khÃ´ng gá»­i thá»­ ra ngÆ°á»i nháº­n ngoÃ i pháº¡m vi nhÃ³m.
+KÃ­ch hoáº¡t má»™t alert thá»­ cÃ³ chá»§ Ä‘Ã­ch, xÃ¡c nháº­n nháº­n vÃ  resolved; má»—i alert cÃ³ ngÆ°á»i xá»­ lÃ½ vÃ  runbook URL. Kiá»ƒm silence/duplicate vÃ  ná»™i dung khÃ´ng chá»©a token.
+Kiá»ƒm tra Firing/notification/resolved Ä‘Æ°á»£c ghi nháº­n; alert háº¿t lá»—i Ä‘Ãºng háº¡n, khÃ´ng spam tá»«ng pod cÃ¹ng sá»± cá»‘ node.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra PrometheusRule, receiver config Ä‘Ã£ che secret vÃ  notification evidence.
+Alert
+NgÆ°á»¡ng LAB Ä‘á» xuáº¥t
+HÆ°á»›ng xá»­ lÃ½
+ERP unreachable
+probe fail liÃªn tá»¥c 2 phÃºt
+DNS Cloudflare PA ELB Ingress endpoint
+HTTP 5xx hoáº·c cháº­m
+5xx trÃªn 1% trong 5 phÃºt; P95 trÃªn 3 giÃ¢y
+API logs DB pool GC Search dependency
+Pod crash hoáº·c OOM
+Restart tÄƒng hoáº·c OOM event
+Xem previous log JVM heap limits rollout
+Node NotReady
+LiÃªn tá»¥c 2 phÃºt
+Node/provider health PDB reschedule
+Disk gáº§n Ä‘áº§y
+TrÃªn 80% trong 10 phÃºt
+Retention volume growth kiá»ƒm backup trÆ°á»›c xÃ³a
+PG connections cao
+TrÃªn 80% budget 5 phÃºt
+Pool long query giá»›i háº¡n replica
+Rabbit queue tÄƒng
+TrÃªn baseline vÃ  tá»“n 10 phÃºt
+Consumer Core backlog trÃ¡nh xÃ³a queue tÃ¹y Ã½
+Backup stale hoáº·c failed
+KhÃ´ng cÃ³ backup thÃ nh cÃ´ng hÆ¡n 26 giá»
+Job S3 credential BSL capacity upload checksum
+Chá»‰ dÃ¹ng expression/metric name sau khi exporter Ä‘Ã£ expose Ä‘Ãºng tÃªn; HTTP P95 cáº§n histogram/bucket tá»« ingress/app, khÃ´ng thá»ƒ suy ra tá»« CPU. NgÆ°á»¡ng trÃªn lÃ  má»¥c tiÃªu váº­n hÃ nh Ä‘á»ƒ kiá»ƒm thá»­, chÆ°a pháº£i SLA sáº£n pháº©m.
+13 Velero backup vÃ  khÃ´i phá»¥c dá»¯ liá»‡u
+BAK01 S3 bucket vÃ  credential backup
+Phá»¥ trÃ¡ch B vá»›i A má»Ÿ egress  |  Thá»i gian 12/10  |  Phá»¥ thuá»™c NET01 SCT02
+Táº¡o bucket private riÃªng cho erp-velero, erp-pg vÃ  logs náº¿u dÃ¹ng S3 Loki. Láº¥y endpoint/signing region tá»« CMC; kiá»ƒm TLS vÃ  Put/Get/List/Delete báº±ng tÃ i khoáº£n Ä‘Ãºng prefix.
+TÃ¡ch credential backup khá»i CI; chá»‘t retention, quota, encryption Ä‘Æ°á»£c dá»‹ch vá»¥ há»— trá»£. KhÃ´ng Ä‘áº·t lifecycle xÃ³a object cá»§a Velero sá»›m hÆ¡n lá»‹ch backup/repository maintenance.
+Kiá»ƒm tra S3-compatible client thao tÃ¡c Ä‘Æ°á»£c; backup role khÃ´ng truy cáº­p bucket khÃ¡c; endpoint khÃ´ng tá»± Ä‘oÃ¡n.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Bucket/prefix inventory vÃ  sanitized connectivity test.
+BAK02 Backup PostgreSQL vÃ  file ERP
+Phá»¥ trÃ¡ch B  |  Thá»i gian 12 Ä‘áº¿n 13/10  |  Phá»¥ thuá»™c APP05 BAK01
+pg_dump custom format má»—i ngÃ y báº±ng client tÆ°Æ¡ng thÃ­ch, PGPASSFILE/credential file quyá»n 0600. Ghi backup ID, DB version, Git digest, checksum vÃ  upload S3; chá»‰ Ä‘Ã¡nh dáº¥u thÃ nh cÃ´ng khi upload/checksum Ä‘áº¡t.
+Náº¿u file nghiá»‡p vá»¥ ngoÃ i DB, chuyá»ƒn maintenance/dá»«ng ghi vÃ  backup file cÃ¹ng má»‘c DB. Giá»¯ 7 Ä‘áº¿n 14 báº£n theo quota; RPO 24 giá»/RTO 30 phÃºt lÃ  má»¥c tiÃªu cáº§n Ä‘o, WAL/PITR chá»‰ thÃªm sau thá»­.
+Kiá»ƒm tra Restore dump trÃªn DB thá»­ Ä‘Æ°á»£c, cÃ³ Ä‘á»§ roles/ownership/sequence/files; alert phÃ¡t hiá»‡n backup lá»—i.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Backup script/schedule, manifest checksum vÃ  successful restore log.
+BAK03 CÃ i Velero BSL vÃ  node agent
+Phá»¥ trÃ¡ch B  |  Thá»i gian 13/10  |  Phá»¥ thuá»™c BAK01 SCT01 STO01
+Pin Velero/plugin AWS tÆ°Æ¡ng thÃ­ch Ä‘á»ƒ truy cáº­p S3-compatible, Ä‘áº·t BSL bucket/endpoint/region/path-style theo CMC Ä‘Ã£ thá»­. Chá»‘t repository password trÆ°á»›c backup Ä‘áº§u vÃ  sao lÆ°u ngoÃ i Git.
+Náº¿u chÆ°a xÃ¡c nháº­n native CSI snapshots, dÃ¹ng File System Backup node-agent cho PVC há»— trá»£ vÃ  khÃ´ng cáº¥u hÃ¬nh AWS volume snapshots. Node-agent cÃ³ tolerations/mount permission trÃªn má»i node chá»©a volume; kiá»ƒm CaaS cho phÃ©p quyá»n cáº§n thiáº¿t.
+Kiá»ƒm tra BSL Available; backup cÃ³ PodVolumeBackup hoÃ n thÃ nh vÃ  dá»¯ liá»‡u lÃªn S3; khÃ´ng chá»‰ metadata/PVC object.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Velero values, plugin compatibility, node-agent coverage vÃ  BSL status. [R8]
+BAK04 Schedule vÃ  báº£o vá»‡ dá»¯ liá»‡u ngoÃ i cluster
+Phá»¥ trÃ¡ch B  |  Thá»i gian 13 Ä‘áº¿n 14/10  |  Phá»¥ thuá»™c BAK03 BAK02
+Táº¡o schedule namespace ERP/platform cáº§n thiáº¿t; opt-in volume backup rÃµ cho PVC cÃ³ dá»¯ liá»‡u vÃ  giá»¯ TTL 7 Ä‘áº¿n 14 ngÃ y. Backup keys/secrets báº£o máº­t theo chÃ­nh sÃ¡ch riÃªng.
+PG/Rabbit/Search/Harbor cháº¡y VM khÃ´ng náº±m trong backup PVC cá»§a Velero. PG dÃ¹ng BAK02; Rabbit backup data/definitions khi quiesce, Search snapshot/reindex Ä‘Ã£ thá»­; PA export cáº¥u hÃ¬nh vÃ  license recovery riÃªng.
+Kiá»ƒm tra Danh má»¥c backup chá»‰ rÃµ tá»«ng dá»¯ liá»‡u, cÃ´ng cá»¥, retention, restore owner; khÃ´ng bá» sÃ³t VM phá»¥ thuá»™c.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra Backup coverage matrix, schedule status vÃ  dependency restore procedures.
+BAK05 Diá»…n táº­p restore vÃ  Ä‘o RPO RTO
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 14 Ä‘áº¿n 16/10  |  Phá»¥ thuá»™c BAK04 GIT06
+Táº¡o Ä‘Æ¡n A, backup, ghi timestamp rá»“i restore sang mÃ´i trÆ°á»ng cÃ´ láº­p. Pause Argo auto sync vÃ  CronJob phÃ¡t hÃ nh/backup; cháº·n egress notification khÃ´ng cáº§n thiáº¿t.
+Restore PG/files/dependencies â†’ secrets keys cáº§n thiáº¿t â†’ objects/PVC â†’ Core/API/UI; náº¿u Ä‘á»•i namespace pháº£i reseal strict secrets vÃ  sá»­a endpoints. Chá»‰ trá» domain sau khi test Ä‘Æ¡n A, attachment, search vÃ  queue Ä‘áº¡t.
+Kiá»ƒm tra MÃ£ Ä‘Æ¡n A cÃ²n nguyÃªn; lÆ°u thá»i gian backup/last write/restore start/business ready, tÃ­nh RPO/RTO thá»±c táº¿ vÃ  ghi cáº£ fail.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra DR runbook, Velero restore details, SQL/order evidence vÃ  báº£ng thá»i gian.
+14 Nghiá»‡m thu chi phÃ­ vÃ  bÃ n giao
+MÃ£
+BÃ i kiá»ƒm tra
+Äiá»u kiá»‡n Ä‘áº¡t vÃ  báº±ng chá»©ng
+AT01
+ERP business flow
+Login táº¡o khÃ¡ch hÃ ng sáº£n pháº©m Ä‘Æ¡n; lÆ°u mÃ£ Ä‘Æ¡n vÃ  video ngáº¯n
+AT02
+Cloudflare vÃ  origin
+Full strict há»£p lá»‡; API khÃ´ng cache; origin direct ngoÃ i allowlist bá»‹ cháº·n
+AT03
+Firewall HA vÃ  VPN
+Äá»•i Active; ERP/VPN phá»¥c há»“i má»¥c tiÃªu â‰¤30 giÃ¢y; log/capture vÃ  sá»‘ request lá»—i
+AT04
+SG vÃ  NetworkPolicy
+Pod/Internet khÃ´ng Ä‘Æ°á»£c cáº¥p quyá»n bá»‹ cháº·n; luá»“ng ERP há»£p lá»‡ váº«n Ä‘i Ä‘Æ°á»£c
+AT05
+GitOps vÃ  secrets
+PR digest â†’ Argo Healthy; khÃ´ng secret rÃµ; read-only khÃ´ng vÆ°á»£t quyá»n
+AT06
+PVC vÃ  failure
+Recreate pod giá»¯ checksum; UI/Ingress khÃ´ng dá»“n node; Core/API downtime Ä‘Æ°á»£c ghi Ä‘Ãºng
+AT07
+GiÃ¡m sÃ¡t vÃ  alert
+Targets UP log truy váº¥n Ä‘Æ°á»£c; thá»­ Firing notification Resolved vÃ  runbook
+AT08
+Backup vÃ  restore
+Restore Ä‘Æ¡n A vÃ  files; Velero cÃ³ volume data; Ä‘o RPO/RTO nghiá»‡p vá»¥
+AT09
+Táº£i má»Ÿ rá»™ng rollback
+10 user 5 phÃºt má»¥c tiÃªu P95 â‰¤3 giÃ¢y lá»—i dÆ°á»›i 1%; HPA/CA cÃ³ sá»‘ Ä‘o; revert Git digest thÃ nh cÃ´ng
+Sizing dá»± kiáº¿n: 5 worker tá»•ng 20 vCPU/40 GiB; 2 PA má»—i mÃ¡y tham kháº£o 4/8 theo image/license; PG 4/8; Rabbit 2/4; Search 4/8; Bastion 2/2; Runner/Harbor 4/8. Tá»•ng 12 VM/worker, 44 vCPU/86 GiB náº¿u cáº¥p má»›i toÃ n bá»™. Control plane managed khÃ´ng tÃ­nh thÃ nh 3 VM tá»± cáº¥p. ÄÃ¢y lÃ  sizing Ä‘áº§u, khÃ´ng pháº£i benchmark hoáº·c bÃ¡o giÃ¡.
+BOM thá»±c táº¿ pháº£i bá»• sung root/data disk/PVC, S3, 2 EIP, ELB, license PA, traffic vÃ  thá»i gian sá»­ dá»¥ng. TÃ¡i dÃ¹ng tÃ i nguyÃªn cÅ© khi Ä‘Æ°á»£c cáº¥p tiáº¿p; node APP tá»‘i Ä‘a 4 chá»‰ trong test. Thiáº¿u quota thÃ¬ Ä‘Æ°a platform/monitoring vá» shared pool cÃ³ resource reservation, hoáº·c giáº£m tÃ­nh nÄƒng má»Ÿ rá»™ng sau khi chá»‘t láº¡i placement vÃ  rá»§i ro.
+END01 Chá»‘t as built vÃ  gÃ³i bÃ n giao
+Phá»¥ trÃ¡ch A vÃ  B  |  Thá»i gian 17 Ä‘áº¿n 19/10  |  Phá»¥ thuá»™c AT01 Ä‘áº¿n AT09
+Cáº­p nháº­t IP/domain/resource IDs/SG/NAT/pool/PVC/digest theo thá»±c táº¿; Ä‘Ã¡nh dáº¥u testcase Pass/Fail vÃ  giá»›i háº¡n. KhÃ´ng dÃ¹ng sÆ¡ Ä‘á»“ Ä‘á» xuáº¥t lÃ m áº£nh káº¿t quáº£ Ä‘Ã£ triá»ƒn khai.
+BÃ n giao repo source vÃ  GitOps Ä‘Ã£ loáº¡i secrets, BOM, runbook deploy/backup/restore/rollback, dashboards, evidence index vÃ  slides. Cáº£ hai thÃ nh viÃªn rehearsal giáº£i thÃ­ch request, return path vÃ  restore.
+Kiá»ƒm tra Má»—i báº±ng chá»©ng cÃ³ commit/timestamp/owner; ngÆ°á»i cÃ²n láº¡i lÃ m láº¡i Ä‘Æ°á»£c runbook trÃªn mÃ´i trÆ°á»ng thá»­.
+Báº±ng chá»©ng vÃ  Ä‘áº§u ra docs/as-built/, evidence/index.csv, acceptance.xlsx hoáº·c báº£ng Word vÃ  slide demo.
+15 Máº«u cáº¥u hÃ¬nh vÃ  lá»‡nh kiá»ƒm tra
+CÃ¡c Ä‘oáº¡n sau lÃ  máº«u cho Helm adapter/manifests cá»§a nhÃ³m. Thay placeholder báº±ng giÃ¡ trá»‹ Ä‘Ã£ xÃ¡c minh; Ä‘Ã¢y khÃ´ng pháº£i values.yaml nguyÃªn báº£n upstream. KhÃ´ng Ä‘áº·t secret tháº­t trong máº«u hoáº·c cháº¡y lá»‡nh xÃ³a dá»¯ liá»‡u trÃªn mÃ´i trÆ°á»ng Ä‘ang phá»¥c vá»¥ ngÆ°á»i dÃ¹ng.
+15 1 Application ERP vÃ  HPA ownership
+apiVersion: argoproj.io/v1alpha1kind: Applicationmetadata:  name: erp-lab  namespace: argocdspec:  project: erp  source:    repoURL: https://github.com/<org>/metasfresh-gitops.git    targetRevision: main    path: charts/erp-adapter    helm:      valueFiles: [values-lab.yaml]  destination:    server: https://kubernetes.default.svc    namespace: erp  syncPolicy:    automated:      prune: false      selfHeal: true      allowEmpty: false    syncOptions: [RespectIgnoreDifferences=true]  ignoreDifferences:  - group: apps    kind: Deployment    name: erp-ui    namespace: erp    jsonPointers: [/spec/replicas]
+Báº­t automated sau smoke test vÃ  sau review RBAC/AppProject. TrÆ°á»›c HPA, giá»¯ replica do Git sá»Ÿ há»¯u vÃ  chÆ°a cáº§n ignoreDifferences. Migration náº±m á»Ÿ quy trÃ¬nh phÃ¡t hÃ nh riÃªng, khÃ´ng nhÃ©t vÃ o má»i sync cá»§a Application nÃ y.
+15 2 PVC giá»¯ dá»¯ liá»‡u
+apiVersion: v1kind: PersistentVolumeClaimmetadata:  name: erp-core-files  namespace: erp  annotations:    argocd.argoproj.io/sync-options: Prune=false,Delete=falsespec:  accessModes: [ReadWriteOnce]  storageClassName: <CMC_CSI_STORAGECLASS>  resources:    requests:      storage: 20Gi
+Chá»‰ táº¡o PVC nÃ y náº¿u Ä‘Ã£ xÃ¡c Ä‘á»‹nh file nghiá»‡p vá»¥ ngoÃ i DB. Vá»›i PV reclaimPolicy Retain, nhÃ³m váº«n cáº§n procedure rebind/restore. Náº¿u chÆ°a cÃ³ dá»¯ liá»‡u file nghiá»‡p vá»¥ thÃ¬ bá» PVC Core vÃ  giá»¯ riÃªng PVC monitoring.
+15 3 Allow API vÃ  Core tá»›i PostgreSQL
+apiVersion: networking.k8s.io/v1kind: NetworkPolicymetadata:  name: erp-to-postgres  namespace: erpspec:  podSelector:    matchExpressions:    - key: app      operator: In      values: [erp-api, erp-core]  policyTypes: [Egress]  egress:  - to:    - ipBlock: {cidr: 10.60.40.10/32}    ports:    - {protocol: TCP, port: 5432}
+ÄÃ¢y chá»‰ lÃ  rule PG bá»• sung cho default-deny. Cáº§n cÃ¡c policy riÃªng cho DNS, Rabbit, Search, API/Core ná»™i bá»™ vÃ  metrics. Kiá»ƒm source IP táº¡i VM rá»“i cáº¥u hÃ¬nh SG; NetworkPolicy khÃ´ng thay tháº¿ SG.
+15 4 Kiá»ƒm tra bootstrap vÃ  chá»©ng cá»©
+kubectl get nodes -o widekubectl get pods -A -o widekubectl get storageclass,pvkubectl -n erp get pvc,svc,endpointsliceskubectl -n erp get networkpolicykubectl -n erp get deploy -o widekubectl -n argocd get applications,appprojectskubectl -n monitoring get servicemonitor,prometheusrulevelero backup-location getvelero backup describe <BACKUP_ID> --detailsvelero restore describe <RESTORE_ID> --details
+Cháº¡y auth can-i báº±ng tá»«ng kubeconfig Ä‘Æ°á»£c cáº¥p, kiá»ƒm container imageID/digest vÃ  secret names/key names mÃ  khÃ´ng in values. Lá»‡nh restore/create/delete chá»‰ thá»±c hiá»‡n theo runbook mÃ´i trÆ°á»ng thá»­ Ä‘Ã£ cÃ´ láº­p; lÆ°u timestamp thay vÃ¬ chá»‰ chá»¥p má»™t pod Running.
+16 Nguá»“n ká»¹ thuáº­t vÃ  há»“ sÆ¡ quyáº¿t Ä‘á»‹nh
+[R1] Snapshot repo ngÆ°á»i dÃ¹ng cung cáº¥p metasfresh-new_dawn_uat.zip; Ä‘Ã£ Ä‘á»‘i chiáº¿u docker-builds/compose/compose.yml, metasfresh.properties, web-config.js, docker-builds/README.md, version.info vÃ  chart datacenter. ZIP SHA256 85924e7d0ce6bdc33d51ed71ccb02936faf775b641ec031a2d76ef4f3e400bb3. Repo cÃ³ DB properties vÃ  thÃ´ng tin máº«u pháº£i thay trÆ°á»›c dÃ¹ng.
+[R1] áº¢nh kiáº¿n trÃºc CMC ERP ngÆ°á»i dÃ¹ng cung cáº¥p vÃ  thiáº¿t káº¿ LAB vá»«a chá»‘t Ä‘Æ°á»£c dÃ¹ng Ä‘á»ƒ xÃ¡c Ä‘á»‹nh pháº¡m vi. CÃ¡c dáº£i CIDR, sizing vÃ  phÃ¢n cÃ´ng trong káº¿ hoáº¡ch lÃ  giÃ¡ trá»‹ Ä‘á» xuáº¥t cáº§n cáº­p nháº­t khi táº¡o tÃ i nguyÃªn.
+[R1] MÃ£ nguá»“n vÃ  chart metasfresh https://github.com/metasfresh/metasfresh
+[R1] TÆ°Æ¡ng thÃ­ch release 5.175 vÃ  PostgreSQL 15 https://docs.metasfresh.org/installation_collection/EN/update_release_5.175_incl_upgrade_to_postgres_v15.html
+[R2] Sealed Secrets vÃ  quáº£n lÃ½ sealing keys https://github.com/bitnami/sealed-secrets
+[R3] Argo CD AppProject https://argo-cd.readthedocs.io/en/stable/user-guide/projects/
+[R3] Argo CD automated sync https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/
+[R3] Argo CD sync options vÃ  waves https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/
+[R4] Kubernetes Persistent Volumes https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+[R5] Cloudflare Full strict https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/
+[R5] Cloudflare origin IP allowlist https://www.cloudflare.com/ips/
+[R6] Harbor TLS https://goharbor.io/docs/2.12.0/install-config/configure-https/
+[R6] Harbor robot accounts https://goharbor.io/docs/2.12.0/working-with-projects/project-configuration/create-robot-accounts/
+[R7] Grafana Promtail EOL vÃ  Alloy https://grafana.com/docs/loki/latest/send-data/promtail/
+[R8] Velero File System Backup https://velero.io/docs/v1.18/file-system-backup/
+[R8] Velero S3 plugin vÃ  compatibility matrix https://github.com/velero-io/velero-plugin-for-aws
+Chá»n báº£n pháº§n má»m Ä‘ang Ä‘Æ°á»£c há»— trá»£ vÃ  tÆ°Æ¡ng thÃ­ch vá»›i CaaS táº¡i ngÃ y triá»ƒn khai; pin phiÃªn báº£n tháº­t trong versions.yaml. CÃ¡c link theo phiÃªn báº£n phá»¥c vá»¥ tra cá»©u cÆ¡ cháº¿, khÃ´ng yÃªu cáº§u nhÃ³m triá»ƒn khai Ä‘Ãºng phiÃªn báº£n trong URL náº¿u Ä‘Ã£ cÃ³ báº£n há»— trá»£ phÃ¹ há»£p hÆ¡n.
+17 Sá»• theo dÃµi Ä‘áº§u viá»‡c
+Äiá»n tráº¡ng thÃ¡i ChÆ°a lÃ m Äang lÃ m Bá»‹ cháº·n HoÃ n thÃ nh; link evidence vÃ  ngÃ y review á»Ÿ repo docs/evidence. Báº£ng dÆ°á»›i lÃ  chá»‰ má»¥c cÃ´ng viá»‡c Ä‘á»ƒ nhÃ³m giao viá»‡c vÃ  theo dÃµi, khÃ´ng thay tháº¿ cÃ¡c bÆ°á»›c triá»ƒn khai á»Ÿ tá»«ng má»¥c.
+ID
+Äáº§u viá»‡c
+PT
+NgÃ y
+Tráº¡ng thÃ¡i
+NET01
+Kiá»ƒm tra quota vÃ  xung Ä‘á»™t Ä‘á»‹a chá»‰
+A
+06/10
+ChÆ°a lÃ m
+NET02
+Táº¡o VPC subnet vÃ  Ä‘á»‹a chá»‰ cá»‘ Ä‘á»‹nh
+A
+06/10
+ChÆ°a lÃ m
+NET03
+Äá»‹nh tuyáº¿n ERP vÃ  Ä‘Æ°á»ng vá» firewall
+A
+06 Ä‘áº¿n 07/10
+ChÆ°a lÃ m
+NET04
+Táº¡o Private ELB vÃ  DNS ná»™i bá»™
+A
+07 Ä‘áº¿n 08/10
+ChÆ°a lÃ m
+NET05
+Cáº¥u hÃ¬nh Bastion vÃ  Ä‘Æ°á»ng VPN
+A
+07/10
+ChÆ°a lÃ m
+SEC01
+Táº¡o SG vÃ  kiá»ƒm tra thá»© tá»± gáº¯n rule
+A
+06 Ä‘áº¿n 08/10
+ChÆ°a lÃ m
+SEC02
+Táº¡o policy máº·c Ä‘á»‹nh cho namespace ERP
+A
+08 Ä‘áº¿n 09/10
+ChÆ°a lÃ m
+SEC03
+XÃ¡c minh IP nguá»“n trÆ°á»›c khi khÃ³a DATA
+A
+09/10
+ChÆ°a lÃ m
+SEC04
+PhÃ¢n quyá»n Kubernetes vÃ  quáº£n trá»‹
+A
+09 Ä‘áº¿n 10/10
+ChÆ°a lÃ m
+FW01
+Bootstrap hai Palo Alto vÃ  shared VIP
+A
+06 Ä‘áº¿n 07/10
+ChÆ°a lÃ m
+FW02
+Cáº¥u hÃ¬nh HA Ä‘á»“ng bá»™ vÃ  policy ERP
+A
+07/10
+ChÆ°a lÃ m
+FW03
+GlobalProtect vÃ  truy cáº­p quáº£n trá»‹
+A
+07/10
+ChÆ°a lÃ m
+CF01
+Chuáº©n bá»‹ domain vÃ  chá»©ng chá»‰ origin
+A
+08 Ä‘áº¿n 09/10
+ChÆ°a lÃ m
+CF02
+Báº­t proxy WAF vÃ  khÃ³a origin
+A
+09 Ä‘áº¿n 10/10
+ChÆ°a lÃ m
+CF03
+Kiá»ƒm tra proxy header vÃ  WebSocket
+B
+09 Ä‘áº¿n 10/10
+ChÆ°a lÃ m
+K8S01
+Táº¡o CaaS vÃ  worker pools
+A
+07 Ä‘áº¿n 08/10
+ChÆ°a lÃ m
+K8S02
+Namespace label taint quota vÃ  policy
+A
+08/10
+ChÆ°a lÃ m
+K8S03
+Requests limits probes vÃ  chá»‘ng dá»“n pod
+B
+08 Ä‘áº¿n 09/10
+ChÆ°a lÃ m
+K8S04
+HPA vÃ  cluster autoscaler cÃ³ kiá»ƒm soÃ¡t
+A
+14 Ä‘áº¿n 15/10
+ChÆ°a lÃ m
+STO01
+XÃ¡c minh CSI vÃ  vÃ²ng Ä‘á»i volume
+A
+08/10
+ChÆ°a lÃ m
+STO02
+Thay hostPath vÃ  táº¡o PVC thá»±c táº¿
+B
+08 Ä‘áº¿n 09/10
+ChÆ°a lÃ m
+STO03
+Báº£o vá»‡ PVC trÆ°á»›c thao tÃ¡c GitOps
+A
+10/10
+ChÆ°a lÃ m
+REG01
+CÃ i Harbor private báº±ng TLS
+B
+08 Ä‘áº¿n 09/10
+ChÆ°a lÃ m
+REG02
+Project robot account vÃ  retention
+B
+09/10
+ChÆ°a lÃ m
+REG03
+Mirror bá»™ ERP vÃ  scan image
+B
+09 Ä‘áº¿n 10/10
+ChÆ°a lÃ m
+SCT01
+Bootstrap controller vÃ  khÃ³a sealing
+A
+10/10
+ChÆ°a lÃ m
+SCT02
+Táº¡o secrets runtime vÃ  imagePullSecrets
+B
+10/10
+ChÆ°a lÃ m
+SCT03
+TÃ¡ch CI credential vÃ  repository credential
+B
+10 Ä‘áº¿n 11/10
+ChÆ°a lÃ m
+SCT04
+Rotate vÃ  kiá»ƒm thá»­ khÃ´i phá»¥c secrets
+A
+13 Ä‘áº¿n 15/10
+ChÆ°a lÃ m
+GIT01
+Táº¡o repository vÃ  quy táº¯c review
+B
+09 Ä‘áº¿n 10/10
+ChÆ°a lÃ m
+GIT02
+Bootstrap Argo CD vÃ  AppProject
+A
+10/10
+ChÆ°a lÃ m
+GIT03
+Adapt chart vÃ  khai bÃ¡o Applications
+B
+10 Ä‘áº¿n 11/10
+ChÆ°a lÃ m
+GIT04
+CI build scan push vÃ  táº¡o PR GitOps
+B
+11/10
+ChÆ°a lÃ m
+GIT05
+Äáº·t chÃ­nh sÃ¡ch sync vÃ  báº£o vá»‡ tÃ i nguyÃªn
+A
+11/10
+ChÆ°a lÃ m
+GIT06
+PhÃ¡t hÃ nh migration vÃ  rollback
+B
+11 Ä‘áº¿n 16/10
+ChÆ°a lÃ m
+APP01
+Chá»‘t bá»™ phÃ¡t hÃ nh vÃ  smoke test
+B
+06 Ä‘áº¿n 07/10
+ChÆ°a lÃ m
+APP02
+Dá»±ng PostgreSQL seed vÃ  migration
+B
+07 Ä‘áº¿n 08/10
+ChÆ°a lÃ m
+APP03
+Rabbit Search vÃ  service endpoints
+B
+08/10
+ChÆ°a lÃ m
+APP04
+Deploy Core API UI vÃ  reverse proxy
+B
+08 Ä‘áº¿n 09/10
+ChÆ°a lÃ m
+APP05
+Kiá»ƒm tra káº¿t ná»‘i DB vÃ  nghiá»‡p vá»¥ xuyÃªn suá»‘t
+B
+09 Ä‘áº¿n 10/10
+ChÆ°a lÃ m
+MON01
+CÃ i metrics vÃ  exporters
+A
+12/10
+ChÆ°a lÃ m
+MON02
+CÃ i Loki vÃ  Alloy thu log
+B
+12/10
+ChÆ°a lÃ m
+MON03
+Provision Grafana vÃ  kiá»ƒm tra HTTPS
+A
+12 Ä‘áº¿n 13/10
+ChÆ°a lÃ m
+MON04
+Alert rules receiver vÃ  runbook
+A
+13/10
+ChÆ°a lÃ m
+BAK01
+S3 bucket vÃ  credential backup
+B
+12/10
+ChÆ°a lÃ m
+BAK02
+Backup PostgreSQL vÃ  file ERP
+B
+12 Ä‘áº¿n 13/10
+ChÆ°a lÃ m
+BAK03
+CÃ i Velero BSL vÃ  node agent
+B
+13/10
+ChÆ°a lÃ m
+BAK04
+Schedule vÃ  báº£o vá»‡ dá»¯ liá»‡u ngoÃ i cluster
+B
+13 Ä‘áº¿n 14/10
+ChÆ°a lÃ m
+BAK05
+Diá»…n táº­p restore vÃ  Ä‘o RPO RTO
+A
+14 Ä‘áº¿n 16/10
+ChÆ°a lÃ m
+END01
+Chá»‘t as built vÃ  gÃ³i bÃ n giao
+A
+17 Ä‘áº¿n 19/10
+ChÆ°a lÃ m

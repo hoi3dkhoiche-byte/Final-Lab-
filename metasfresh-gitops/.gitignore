@@ -1,0 +1,14 @@
+# Private inputs, cloud credentials and local render output never belong in Git.
+private-inputs/
+**/private-inputs/
+.env
+**/.env
+*.tfstate
+*.tfstate.*
+*.kubeconfig
+kubeconfig*
+__pycache__/
+*.pyc
+rendered/
+platform-render/
+.rendered/

@@ -1,0 +1,25 @@
+{{- if .Values.metrics.enabled }}
+{{- range $component := list "core" "api" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metasfresh-{{ $component }}-metrics
+  namespace: {{ include "erp.namespace" $ }}
+  labels:
+    app: metasfresh-{{ $component }}
+    metrics: enabled
+    {{- include "erp.labels" $ | nindent 4 }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: {{ $.Values.metrics.path | quote }}
+    prometheus.io/port: {{ if eq $component "core" }}"8282"{{ else }}"8080"{{ end }}
+spec:
+  type: ClusterIP
+  selector: {app: metasfresh-{{ $component }}}
+  ports:
+    - name: http-metrics
+      port: {{ if eq $component "core" }}8282{{ else }}8080{{ end }}
+      targetPort: http
+{{- end }}
+{{- end }}

@@ -6,26 +6,19 @@ metadata:
 spec:
   project: erp
   source:
-    repoURL: 'YOUR_GIT_REPO_URL' # Thay bằng URL repo gitops thực tế
+    # Required configured URL; bootstrap fills this before applying.
+    repoURL: https://github.com/hoi3dkhoiche-byte/GitOps-final-lab.git
+    targetRevision: main
     path: charts/erp-adapter
-    targetRevision: HEAD
     helm:
+      releaseName: erp
       valueFiles:
         - ../../environments/lab/values-lab.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: erp
+  # Initial sync is manual. Enable automation only after business smoke tests.
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
-      allowEmpty: false
     syncOptions:
-      - CreateNamespace=true
       - RespectIgnoreDifferences=true
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      name: metasfresh-ui
-      jsonPointers:
-        - /spec/replicas
+  # No finalizer and no CreateNamespace: the bootstrap owns namespace lifecycle.
