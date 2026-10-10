@@ -6,6 +6,12 @@ on:
         description: Successful Build and Push run ID from main
         required: true
         type: string
+  workflow_run:
+    workflows: ["Build and Push Docker Images"]
+    types:
+      - completed
+    branches:
+      - main
 permissions:
   contents: read
   actions: read
@@ -19,7 +25,7 @@ jobs:
     environment: lab-release
     timeout-minutes: 20
     env:
-      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id || github.event.workflow_run.id }}
       HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
       HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
       GITOPS_REPOSITORY: ${{ vars.GITOPS_REPOSITORY }}
