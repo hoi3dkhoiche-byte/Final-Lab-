@@ -31,12 +31,14 @@ docker run --rm -v "$PWD/ci-output/reports:/reports" "lab/metas-junit:$RELEASE_I
 mkdir -p ci-output/reports/migration
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD/ci-output/settings.xml:/root/.m2/settings.xml:ro" \
   -v "$PWD/ci-output/reports/migration:/java/backend/de.metas.fresh/de.metas.fresh.base/target/surefire-reports" \
   -e SKIP_MIGRATION_SCRIPTS_TEST=false \
   -w /java/backend \
   --entrypoint mvn \
   "lab/metas-junit:$RELEASE_ID" \
-  --batch-mode --no-transfer-progress --offline \
+  --batch-mode --no-transfer-progress \
+  -s /root/.m2/settings.xml \
   -pl de.metas.fresh/de.metas.fresh.base \
   -Dtest=RunMigrationScriptsTest \
   surefire:test
