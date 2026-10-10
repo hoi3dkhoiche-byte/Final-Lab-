@@ -34,6 +34,7 @@ docker run --rm \
   -v "$PWD/ci-output/settings.xml:/root/.m2/settings.xml:ro" \
   -v "$PWD/ci-output/reports/migration:/java/backend/de.metas.fresh/de.metas.fresh.base/target/surefire-reports" \
   -e SKIP_MIGRATION_SCRIPTS_TEST=false \
+  -e JAVA_TOOL_OPTIONS="-Dapi.version=1.40" \
   -w /java/backend \
   --entrypoint mvn \
   "lab/metas-junit:$RELEASE_ID" \
