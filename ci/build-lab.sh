@@ -19,9 +19,27 @@ build() {
 }
 build Dockerfile.common metasfresh/metas-mvn-common
 build Dockerfile.backend metasfresh/metas-mvn-backend
-build Dockerfile.junit lab/metas-junit
+docker build --progress=plain \
+  -f docker-builds/Dockerfile.junit \
+  --build-arg REGISTRY= \
+  --build-arg "REFNAME=$RELEASE_ID" \
+  --build-arg SKIP_MIGRATION_SCRIPTS_TEST=true \
+  --secret id=mvn-settings,src=ci-output/settings.xml \
+  -t "lab/metas-junit:$RELEASE_ID" .
 docker run --rm --entrypoint bash "lab/metas-junit:$RELEASE_ID" -c 'for dir in /java/commons /java/backend; do for report in junit.exit-code junit.mvn.exit-code; do test "$(cat "$dir/$report")" = 0 || exit 1; done; done'
 docker run --rm -v "$PWD/ci-output/reports:/reports" "lab/metas-junit:$RELEASE_ID"
+mkdir -p ci-output/reports/migration
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD/ci-output/reports/migration:/java/backend/de.metas.fresh/de.metas.fresh.base/target/surefire-reports" \
+  -e SKIP_MIGRATION_SCRIPTS_TEST=false \
+  -w /java/backend \
+  --entrypoint mvn \
+  "lab/metas-junit:$RELEASE_ID" \
+  --batch-mode --no-transfer-progress --offline \
+  -pl de.metas.fresh/de.metas.fresh.base \
+  -Dtest=RunMigrationScriptsTest \
+  surefire:test
 python3 - <<'PY'
 from pathlib import Path
 import xml.etree.ElementTree as ET
