@@ -7,7 +7,12 @@ FROM maven:3.8.8-eclipse-temurin-8 AS junit
 
 ARG SKIP_MIGRATION_SCRIPTS_TEST=false
 
-RUN apt-get update && apt-get install -y locales mmv && rm -rf /var/lib/apt/lists/* && localedef -i de_DE -c -f UTF-8 -A /usr/share/locale/locale.alias de_DE.UTF-8
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    locales mmv postgresql-client \
+ && rm -rf /var/lib/apt/lists/* \
+ && localedef -i de_DE -c -f UTF-8 -A /usr/share/locale/locale.alias de_DE.UTF-8 \
+ && psql --version
 ENV LANG=de_DE.UTF-8 LANGUAGE=de_DE.UTF-8 LC_MESSAGES=de_DE.UTF-8
 ENV TZ=Europe/Berlin
 ENV SKIP_MIGRATION_SCRIPTS_TEST=$SKIP_MIGRATION_SCRIPTS_TEST
