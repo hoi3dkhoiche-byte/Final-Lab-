@@ -38,7 +38,7 @@ jobs:
           scan-type: fs
           scanners: secret
           exit-code: '1'
-          trivyignores: '.trivyignore'
+          skip-files: 'misc/services/procurement-webui/nginx/configs/certs/nginx-selfsigned.key'
   build:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: validate
