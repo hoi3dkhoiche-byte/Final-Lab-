@@ -1,0 +1,2 @@
+# Ignore local self-signed certificate private key for procurement-webui
+misc/services/procurement-webui/nginx/configs/certs/nginx-selfsigned.key
