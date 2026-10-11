@@ -57,6 +57,12 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install PyYAML==6.0.2
+      - name: Install Helm
+        uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.16.4
+      - name: Verify Helm
+        run: helm version --short
       - name: Update digest lock and open review PR
         env:
           GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
