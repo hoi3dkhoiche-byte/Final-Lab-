@@ -33,7 +33,8 @@ WORKDIR /reports/frontend
 CMD cp /webui/jest.* .
 
 
-FROM nginx:1.21.6 AS runtime
+FROM nginx:1.30.5-alpine AS runtime
 WORKDIR /usr/share/nginx/html
-COPY docker-builds/nginx/default.conf /etc/nginx/conf.d
-COPY --from=build /webui/dist/ .
+COPY docker-builds/nginx/default.conf /etc/nginx/conf.d/
+COPY --from=build /webui/dist/ ./
+RUN nginx -t
