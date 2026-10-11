@@ -40,11 +40,12 @@ jobs:
           [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/build-run.json"
           python3 ci/verify_build.py "$RUNNER_TEMP/build-run.json"
-      - uses: actions/download-artifact@v4
+      - name: Download build evidence
+        uses: actions/download-artifact@v4
         with:
           name: lab-evidence
           path: ci-output
-          run-id: ${{ inputs.build_run_id }}
+          run-id: ${{ env.BUILD_RUN_ID }}
           github-token: ${{ github.token }}
       - uses: actions/checkout@v4
         with:
