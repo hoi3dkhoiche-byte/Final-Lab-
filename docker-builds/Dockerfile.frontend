@@ -34,6 +34,11 @@ CMD cp /webui/jest.* .
 
 
 FROM nginx:1.30.5-alpine AS runtime
+RUN apk add --no-cache \
+    "libexpat>=2.8.5-r0" \
+    "pcre2>=10.49-r0" \
+    "tiff>=4.7.2-r0" \
+ && apk info -v libexpat pcre2 tiff
 WORKDIR /usr/share/nginx/html
 COPY docker-builds/nginx/default.conf /etc/nginx/conf.d/
 COPY --from=build /webui/dist/ ./
